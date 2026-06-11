@@ -6,6 +6,10 @@ const employeeSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
   role: { type: String, enum: ['staff', 'manager', 'admin'], default: 'staff' },
+  company:{
+    type:mongoose.Schema.Types.ObjectId,
+    ref:'Company'
+  },
   managerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', default: null }
 }, { timestamps: true });
 

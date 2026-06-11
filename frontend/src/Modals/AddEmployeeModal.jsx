@@ -1,18 +1,23 @@
 import React, { useState } from 'react';
 import { useCreateEmployeeMutation, useGetAdminsAndManagerQuery, useGetManagersQuery } from "../redux/services/employeeApi";
+import { useGetCompaniesQuery } from '../redux/services/companyApi';
+import { toast } from 'react-toastify';
 
 function AddEmployeeModal({ isOpen, onClose }) {
     if (!isOpen) return null;
 
     const [createEmployee, { isLoading }] = useCreateEmployeeMutation();
+    const { data: companyData, isLoading: companyLoading } = useGetCompaniesQuery();
     const { data: AdminAndManagers, isLoading: managersLoading } = useGetAdminsAndManagerQuery();
+    const companies = companyData?.companies || [];
 
     const [formData, setFormData] = useState({
         name: "",
         email: "",
         role: "staff",
         managerId: "",
-        password: ""
+        password: "",
+        company: ""
     });
     const [errorMsg, setErrorMsg] = useState("");
 
@@ -39,7 +44,8 @@ function AddEmployeeModal({ isOpen, onClose }) {
                 email: formData.email,
                 password: formData.password,
                 role: formData.role,
-                managerId: formData.managerId || null
+                managerId: formData.managerId || null,
+                company: formData.company || null
             }).unwrap();
             onClose();
         } catch (error) {
@@ -96,9 +102,9 @@ function AddEmployeeModal({ isOpen, onClose }) {
                                 value={formData.role}
                                 onChange={(e) => handleRoleChange(e.target.value)}
                             >
-                                <option value="staff">Staff </option>
-                                <option value="manager"> Manager</option>
-                                <option value="admin"> Admin</option>
+                                <option value="staff">Staff</option>
+                                <option value="manager">Manager</option>
+                                <option value="admin">Admin</option>
                             </select>
                         </div>
 
@@ -115,19 +121,37 @@ function AddEmployeeModal({ isOpen, onClose }) {
                         </div>
                     </div>
 
-                    <div className="form-group">
-                        <label>Assign Reporting Manager (Optional)</label>
-                        <select
-                            className="form-control"
-                            value={formData.managerId}
-                            onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
-                            disabled={formData.role === 'admin' || managersLoading}
-                        >
-                            <option value="">{managersLoading ? "Loading admins and managers list..." : "None (No Reporting Manager)"}</option>
-                            {AdminAndManagers && AdminAndManagers.map(mgr => (
-                                <option key={mgr._id} value={mgr._id}>{mgr.name}</option>
-                            ))}
-                        </select>
+                    <div className="form-row">
+                        <div className="form-group">
+                            <label>Company (Optional)</label>
+                            <select
+                                className="form-control"
+                                value={formData.company}
+                                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                            >
+                                <option value="">Select Company...</option>
+                                {companies.map((company) => (
+                                    <option key={company._id} value={company._id}>
+                                        {company.companyName}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="form-group">
+                            <label>Assign Reporting Manager</label>
+                            <select
+                                className="form-control"
+                                value={formData.managerId}
+                                onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
+                                disabled={formData.role === 'admin' || managersLoading}
+                            >
+                                <option value="">{managersLoading ? "Loading admins and managers list..." : "Select Manager"}</option>
+                                {AdminAndManagers && AdminAndManagers.map(mgr => (
+                                    <option key={mgr._id} value={mgr._id}>{mgr.name}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>

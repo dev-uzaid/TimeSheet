@@ -22,6 +22,7 @@ router.get('/', protect, managerOrAdmin, async (req, res) => {
   try {
     const employees = await Employee.find({})
       .populate('managerId', 'name email')
+      .populate('company', 'companyName')
       .select('-password');
     res.json(employees);
   } catch (error) {
@@ -45,7 +46,7 @@ router.get('/managers', protect, async (req, res) => {
 // @route   POST /api/employees
 // @access  Private (Admin only)
 router.post('/', protect, adminOnly, async (req, res) => {
-  const { name, email, password, role, managerId } = req.body;
+  const { name, email, password, role, managerId, company } = req.body;
   console.log("Data", req.body);
 
   try {
@@ -60,7 +61,8 @@ router.post('/', protect, adminOnly, async (req, res) => {
       email,
       password,
       role,
-      managerId: managerId || null
+      managerId: managerId || null,
+      company
     });
 
     res.status(201).json({

@@ -55,6 +55,7 @@ const Employee = () => {
                                 <th>Name</th>
                                 <th>Email Address</th>
                                 <th>Organization Role</th>
+                                <th>Company</th>
                                 <th>Reporting Manager</th>
                                 {currentUser?.role === 'admin' && <th style={{ textAlign: 'right' }}>Actions</th>}
                             </tr>
@@ -62,19 +63,19 @@ const Employee = () => {
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={currentUser?.role === 'admin' ? 5 : 4} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-secondary)' }}>
+                                    <td colSpan={currentUser?.role === 'admin' ? 6 : 5} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-secondary)' }}>
                                         Loading registered employees...
                                     </td>
                                 </tr>
                             ) : isError ? (
                                 <tr>
-                                    <td colSpan={currentUser?.role === 'admin' ? 5 : 4} style={{ textAlign: 'center', padding: '32px', color: 'var(--danger)', fontWeight: 600 }}>
+                                    <td colSpan={currentUser?.role === 'admin' ? 6 : 5} style={{ textAlign: 'center', padding: '32px', color: 'var(--danger)', fontWeight: 600 }}>
                                         Failed to load employee records. Please verify authorization.
                                     </td>
                                 </tr>
                             ) : !employees || employees.length === 0 ? (
                                 <tr>
-                                    <td colSpan={currentUser?.role === 'admin' ? 5 : 4} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-secondary)' }}>
+                                    <td colSpan={currentUser?.role === 'admin' ? 6 : 5} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-secondary)' }}>
                                         No employees registered in the system.
                                     </td>
                                 </tr>
@@ -90,6 +91,13 @@ const Employee = () => {
                                             }`}>
                                                 {emp.role}
                                             </span>
+                                        </td>
+                                        <td>
+                                            {emp.company ? (
+                                                <span style={{ fontWeight: 500 }}>{emp.company.companyName}</span>
+                                            ) : (
+                                                <span style={{ color: 'var(--text-muted)' }}>-</span>
+                                            )}
                                         </td>
                                         <td>
                                             {emp.managerId ? (

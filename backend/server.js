@@ -14,6 +14,7 @@ import assetRoutes from './routes/assets.js';
 import defaulterRoutes from './routes/defaulters.js';
 import notificationRoutes from './routes/notifications.js';
 import workTypeRoutes from './routes/workType.js';
+import companyRoutes from './routes/companyRoutes.js';
 
 // Load Environment Variables
 dotenv.config();
@@ -23,6 +24,10 @@ await connectDB();
 
 // Seed Initial Mock Data
 await seedDatabase();
+
+// Initialize Defaulter Compliance Scheduled Jobs
+import { initDefaulterCron } from './services/defaulterCron.js';
+initDefaulterCron();
 
 const app = express();
 
@@ -40,6 +45,7 @@ app.use('/api/assets', assetRoutes);
 app.use('/api/defaulters', defaulterRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/workType', workTypeRoutes);
+app.use('/api/companies', companyRoutes);
 
 // Base Route
 app.get('/', (req, res) => {

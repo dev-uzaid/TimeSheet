@@ -14,6 +14,8 @@ import {
   WorkType
 } from '../index';
 import Employee from '../employee/Employee';
+import EmployeeWorkReport from '../EmployeeWorkReport/EmployeeWorkReport';
+import Company from '../company/Company';
 
 export default function Home() {
   const [token, setToken] = useState(getStoredToken());
@@ -229,6 +231,15 @@ export default function Home() {
           )}
           {(user.role === 'manager' || user.role === 'admin') && (
             <li 
+              className={`nav-item ${activeScreen === 'workreport' ? 'active' : ''}`}
+              onClick={() => setActiveScreen('workreport')}
+            >
+              <Briefcase size={18} />
+              Work Report
+            </li>
+          )}
+          {(user.role === 'manager' || user.role === 'admin') && (
+            <li 
               className={`nav-item ${activeScreen === 'clients' ? 'active' : ''}`}
               onClick={() => setActiveScreen('clients')}
             >
@@ -252,6 +263,15 @@ export default function Home() {
             >
               <Briefcase size={18} />
               Engagements
+            </li>
+          )}
+          {(user.role === 'manager' || user.role === 'admin') && (
+            <li 
+              className={`nav-item ${activeScreen === 'company' ? 'active' : ''}`}
+              onClick={() => setActiveScreen('company')}
+            >
+              <Building size={18} />
+             Company
             </li>
           )}
 
@@ -298,31 +318,35 @@ export default function Home() {
 
       {/* Main Panel Content */}
       <main className="main-content">
-        <header className="header">
-          <div className="page-title">
-            <h1 style={{ textTransform: 'capitalize' }}>
-              {activeScreen === 'timesheets' ? 'Weekly Timesheets' : activeScreen === 'assets' ? 'IT Asset Management' : activeScreen === 'defaulters' ? 'Compliance Defaulters' : activeScreen === 'notifications' ? 'Alerts Inbox' : activeScreen}
-            </h1>
-          </div>
-          <div className="header-actions">
-            <button 
-              className="notification-trigger" 
-              onClick={() => setActiveScreen('notifications')}
-              title="View system alerts"
-            >
-              <Inbox size={20} />
-              {unreadCount > 0 && <span className="notification-badge" />}
-            </button>
-          </div>
-        </header>
+        {activeScreen !== 'dashboard' && (
+          <header className="header">
+            <div className="page-title">
+              <h1 style={{ textTransform: 'capitalize' }}>
+                {activeScreen === 'timesheets' ? 'Weekly Timesheets' : activeScreen === 'assets' ? 'IT Asset Management' : activeScreen === 'defaulters' ? 'Compliance Defaulters' : activeScreen === 'notifications' ? 'Alerts Inbox' : activeScreen}
+              </h1>
+            </div>
+            <div className="header-actions">
+              <button 
+                className="notification-trigger" 
+                onClick={() => setActiveScreen('notifications')}
+                title="View system alerts"
+              >
+                <Inbox size={20} />
+                {unreadCount > 0 && <span className="notification-badge" />}
+              </button>
+            </div>
+          </header>
+        )}
 
         <div className="content-body">
-          {activeScreen === 'dashboard' && <Dashboard user={user} />}
+          {activeScreen === 'dashboard' && <Dashboard user={user} setActiveScreen={setActiveScreen} />}
           {activeScreen === 'timesheets' && <TimesheetModule user={user} />}
           {activeScreen==='employees'&&(user.role==='manager'||user.role==='admin')&&<Employee/>}
+          {activeScreen==='workreport'&&(user.role==='manager'||user.role==='admin')&&<EmployeeWorkReport/>}
           {activeScreen === 'clients' && (user.role === 'manager' || user.role === 'admin') && <ClientModule />}
           {activeScreen === 'worktypes' && (user.role === 'manager' || user.role === 'admin') && <WorkType />}
           {activeScreen === 'engagements' && (user.role === 'manager' || user.role === 'admin') && <EngagementModule user={user} />}
+          {activeScreen ==='company'&&(user.role==='manager'||user.role==='admin')&&<Company/>}
           {activeScreen === 'assets' && <ITAssetModule user={user} />}
           {activeScreen === 'defaulters' && user.role === 'admin' && <DefaulterModule />}
           {activeScreen === 'notifications' && (

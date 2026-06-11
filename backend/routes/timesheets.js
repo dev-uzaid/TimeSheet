@@ -24,7 +24,7 @@ router.get('/', protect, async (req, res) => {
       }
       // Managers might only want to see people who report to them by default
       if (req.query.pendingOnly === 'true') {
-        query.status = 'submitted';
+        query.status = { $in: ['submitted', 'queried'] };
         
         // If manager, default to filtering by their subordinates unless admin
         if (req.user.role === 'manager' && !req.query.allEmployees) {
@@ -138,7 +138,7 @@ router.post('/bulk', protect, async (req, res) => {
         engagementId,
         workType,
         date,
-        status: { $in: ['draft', 'rejected'] }
+        status: { $in: ['draft', 'rejected', 'queried'] }
       });
 
       if (timesheet) {
@@ -288,6 +288,47 @@ router.put('/:id/reject', protect, managerOrAdmin, async (req, res) => {
   }
 });
 
+// @desc    Raise query on timesheet entry (Requires comment)
+// @route   PUT /api/timesheets/:id/query
+// @access  Private (Manager/Admin only)
+router.put('/:id/query', protect, managerOrAdmin, async (req, res) => {
+  const { queryComment } = req.body;
+
+  if (!queryComment) {
+    return res.status(400).json({ message: 'Query comment is required' });
+  }
+
+  try {
+    const timesheet = await Timesheet.findById(req.params.id);
+
+    if (!timesheet) {
+      return res.status(404).json({ message: 'Timesheet not found' });
+    }
+
+    timesheet.status = 'queried';
+    timesheet.rejectionComment = queryComment;
+    await timesheet.save();
+
+    // Trigger Timesheet Query conversation thread
+    const initialQuery = await TimesheetQuery.create({
+      timesheetId: timesheet._id,
+      senderId: req.user._id,
+      message: `System Alert: Query raised by ${req.user.name} with comment: "${queryComment}"`
+    });
+
+    // Notify Employee
+    await Notification.create({
+      recipientId: timesheet.employeeId,
+      title: 'Query Raised on Timesheet Entry',
+      body: `A query was raised on your timesheet entry for date ${timesheet.date} by ${req.user.name}. Reason: ${queryComment}`
+    });
+
+    res.json({ message: 'Query raised successfully', timesheet, query: initialQuery });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // @desc    Get queries for a timesheet
 // @route   GET /api/timesheets/:id/queries
 // @access  Private
@@ -390,8 +431,8 @@ router.put('/:id', protect, async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to edit this timesheet' });
     }
 
-    // Only allow edit if draft or rejected
-    if (timesheet.status !== 'draft' && timesheet.status !== 'rejected') {
+    // Only allow edit if draft, rejected, or queried
+    if (timesheet.status !== 'draft' && timesheet.status !== 'rejected' && timesheet.status !== 'queried') {
       return res.status(400).json({ message: 'Cannot edit a submitted or approved timesheet' });
     }
 

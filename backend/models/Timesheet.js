@@ -8,7 +8,7 @@ const timesheetSchema = new mongoose.Schema({
   hours: { type: Number, required: true, min: 0.1, max: 24 },
   status: { 
     type: String, 
-    enum: ['draft', 'submitted', 'approved', 'rejected'], 
+    enum: ['draft', 'submitted', 'approved', 'rejected', 'queried'], 
     default: 'draft' 
   },
   rejectionComment: { type: String, default: '' },

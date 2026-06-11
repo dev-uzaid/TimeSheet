@@ -1,39 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, Cell, PieChart, Pie } from 'recharts';
-import { Clock, Briefcase, ShieldAlert, Monitor, Users, FileText, CheckCircle2, DollarSign } from 'lucide-react';
+import { Clock, Briefcase, ShieldAlert, Monitor, Users, FileText, CheckCircle2, Building, MessageSquare, TrendingUp, Activity, ChevronRight, Shield, Bell } from 'lucide-react';
 import { api } from '../../utils/api';
 
-export default function Dashboard({ user }) {
+export default function Dashboard({ user, setActiveScreen }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch required records to aggregate statistics dynamically
-      const [timesheets, engagements, assets, employees, clients, assetDashboard] = await Promise.all([
+      const [timesheets, engagements, assets, employees, clients, assetDashboard, companiesData] = await Promise.all([
         api.get('/timesheets'),
         api.get('/engagements'),
         api.get('/assets'),
-        api.get('/employees').catch(() => []), // staff might fail on this endpoint due to role restriction, fallback
+        api.get('/employees').catch(() => []),
         api.get('/clients'),
-        api.get('/assets/dashboard')
+        api.get('/assets/dashboard'),
+        api.get('/companies').catch(() => ({ companies: [] }))
       ]);
 
-      const data = {
+      setStats({
         timesheets,
         engagements,
         assets,
         employees,
         clients,
-        assetDashboard
-      };
-
-      setStats(data);
+        assetDashboard,
+        companies: companiesData?.companies || []
+      });
     } catch (err) {
       console.error(err);
     } finally {
+      setStats(prev => prev || {});
       setLoading(false);
     }
   };
@@ -43,349 +41,829 @@ export default function Dashboard({ user }) {
   }, []);
 
   if (loading || !stats) {
-    return <p className="stat-desc" style={{ textAlign: 'center', padding: '32px' }}>Loading Dashboard Widgets...</p>;
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px', color: 'var(--text-secondary)' }}>
+        <p className="stat-desc">Loading Dashboard Widgets...</p>
+      </div>
+    );
   }
 
+  // Formatting date
+  const formatDate = () => {
+    const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    return new Date().toLocaleDateString('en-GB', options);
+  };
+
+  // Staff calculations
+  const myTS = stats.timesheets?.filter(t => t.employeeId?._id === user._id) || [];
+  const myApprovedHours = myTS.filter(t => t.status === 'approved').reduce((acc, c) => acc + c.hours, 0);
+  const mySubmittedHours = myTS.filter(t => t.status === 'submitted').reduce((acc, c) => acc + c.hours, 0);
+  const myDraftHours = myTS.filter(t => t.status === 'draft').reduce((acc, c) => acc + c.hours, 0);
+  const myQueriedHours = myTS.filter(t => t.status === 'queried').reduce((acc, c) => acc + c.hours, 0);
+  const myTotalHours = myApprovedHours + mySubmittedHours + myDraftHours + myQueriedHours;
+  const myAssets = stats.assets?.filter(a => a.currentUserId?._id === user._id) || [];
+  const myActiveProjects = stats.engagements?.filter(e => e.assignedStaff?.some(s => s === user._id || s._id === user._id)) || [];
+
+  // Admin/Manager calculations
+  const pendingTS = stats.timesheets?.filter(t => t.status === 'submitted') || [];
+  const queriedTS = stats.timesheets?.filter(t => t.status === 'queried') || [];
+  const approvedHours = stats.timesheets?.filter(t => t.status === 'approved').reduce((acc, t) => acc + t.hours, 0) || 0;
+
+  const companiesCount = stats.companies?.length || 0;
+  const employeesCount = stats.employees?.length || 0;
+  const clientsCount = stats.clients?.length || 0;
+  const pendingApprovalsCount = pendingTS.length;
+  const openQueriesCount = queriedTS.length;
+
+  // Render Actions list
+  const quickActions = [
+    {
+      title: "Work in Progress",
+      desc: "Monitor all ongoing client engagements",
+      icon: <Activity size={20} style={{ color: "#3b82f6" }} />,
+      bg: "rgba(59, 130, 246, 0.15)",
+      screen: "engagements",
+      roles: ["admin", "manager"]
+    },
+    {
+      title: "My Timesheets",
+      desc: "Log and manage your daily hours",
+      icon: <Clock size={20} style={{ color: "#6366f1" }} />,
+      bg: "rgba(99, 102, 241, 0.15)",
+      screen: "timesheets",
+      roles: ["admin", "manager", "staff"]
+    },
+    {
+      title: "Approvals",
+      desc: "Review and approve subordinate logs",
+      icon: <CheckCircle2 size={20} style={{ color: "#f59e0b" }} />,
+      bg: "rgba(245, 158, 11, 0.15)",
+      screen: "timesheets", 
+      roles: ["admin", "manager"]
+    },
+    {
+      title: "All Timesheets",
+      desc: "View all employee timesheet records",
+      icon: <FileText size={20} style={{ color: "#3b82f6" }} />,
+      bg: "rgba(59, 130, 246, 0.15)",
+      screen: "workreport",
+      roles: ["admin", "manager"]
+    },
+    {
+      title: "Timesheet Queries",
+      desc: "Ask questions about timesheet records",
+      icon: <MessageSquare size={20} style={{ color: "#ef4444" }} />,
+      bg: "rgba(239, 68, 68, 0.15)",
+      screen: "timesheets",
+      roles: ["admin", "manager"]
+    },
+    {
+      title: "Employees",
+      desc: "Add and manage staff records",
+      icon: <Users size={20} style={{ color: "#a855f7" }} />,
+      bg: "rgba(168, 85, 247, 0.15)",
+      screen: "employees",
+      roles: ["admin", "manager"]
+    },
+    {
+      title: "Departments",
+      desc: "Manage your company departments",
+      icon: <Building size={20} style={{ color: "#14b8a6" }} />,
+      bg: "rgba(20, 184, 166, 0.15)",
+      screen: "company",
+      roles: ["admin", "manager"]
+    },
+    {
+      title: "Clients",
+      desc: "Manage client and project portfolios",
+      icon: <Briefcase size={20} style={{ color: "#10b981" }} />,
+      bg: "rgba(16, 185, 129, 0.15)",
+      screen: "clients",
+      roles: ["admin", "manager"]
+    },
+    {
+      title: "Work Types",
+      desc: "Configure billable work categories",
+      icon: <FileText size={20} style={{ color: "#f59e0b" }} />,
+      bg: "rgba(245, 158, 11, 0.15)",
+      screen: "worktypes",
+      roles: ["admin", "manager"]
+    },
+    {
+      title: "Company Management",
+      desc: "Register and update company profiles",
+      icon: <Building size={20} style={{ color: "#64748b" }} />,
+      bg: "rgba(100, 116, 139, 0.15)",
+      screen: "company",
+      roles: ["admin", "manager"]
+    },
+    {
+      title: "Company Roles",
+      desc: "Define custom roles like Partner or Lead",
+      icon: <Shield size={20} style={{ color: "#a855f7" }} />,
+      bg: "rgba(168, 85, 247, 0.15)",
+      screen: "employees",
+      roles: ["admin", "manager"]
+    },
+    {
+      title: "Issued Assets",
+      desc: "View and manage company devices",
+      icon: <Monitor size={20} style={{ color: "#f59e0b" }} />,
+      bg: "rgba(245, 158, 11, 0.15)",
+      screen: "assets",
+      roles: ["staff"]
+    },
+    {
+      title: "System Alerts",
+      desc: "Check recent system notifications",
+      icon: <Bell size={20} style={{ color: "#ef4444" }} />,
+      bg: "rgba(239, 68, 68, 0.15)",
+      screen: "notifications",
+      roles: ["staff"]
+    }
+  ];
+
+  const filteredActions = quickActions.filter(act => act.roles.includes(user.role));
+
   // ==========================================
-  // STAFF USER DASHBOARD
+  // STAFF USER DASHBOARD VIEW
   // ==========================================
   if (user.role === 'staff') {
-    const myTS = stats.timesheets.filter(t => t.employeeId?._id === user._id);
-    const approvedHours = myTS.filter(t => t.status === 'approved').reduce((acc, c) => acc + c.hours, 0);
-    const submittedHours = myTS.filter(t => t.status === 'submitted').reduce((acc, c) => acc + c.hours, 0);
-    const draftHours = myTS.filter(t => t.status === 'draft').reduce((acc, c) => acc + c.hours, 0);
-    const totalHours = approvedHours + submittedHours + draftHours;
-
-    const myAssets = stats.assets.filter(a => a.currentUserId?._id === user._id);
-    const activeProjects = stats.engagements.filter(e => e.assignedStaff?.some(s => s === user._id || s._id === user._id));
-
-    // Prepare chart data (hours logged daily for the last 6 logs)
-    const dailyData = myTS.slice(0, 6).reverse().map(ts => ({
-      name: ts.date.substring(5), // MM-DD
-      hours: ts.hours,
-      status: ts.status
-    }));
-
     return (
-      <div>
-        {/* KPI Cards */}
-        <div className="dashboard-grid">
-          <div className="glass-panel stat-card">
-            <div className="stat-content">
-              <span className="stat-title">Total Hours Logged</span>
-              <span className="stat-value">{totalHours} hrs</span>
-              <span className="stat-desc">Approved: {approvedHours} | Draft: {draftHours}</span>
-            </div>
-            <div className="stat-icon primary">
-              <Clock size={24} />
-            </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Dashboard Top Header row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', margin: 0 }}>
+              Welcome back, <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{user.name}</span>. Here's your personal timesheet overview.
+            </p>
           </div>
-          <div className="glass-panel stat-card">
-            <div className="stat-content">
-              <span className="stat-title">My Projects</span>
-              <span className="stat-value">{activeProjects.length}</span>
-              <span className="stat-desc">Active assigned engagements</span>
-            </div>
-            <div className="stat-icon success">
-              <Briefcase size={24} />
-            </div>
-          </div>
-          <div className="glass-panel stat-card">
-            <div className="stat-content">
-              <span className="stat-title">Corporate Assets Issued</span>
-              <span className="stat-value">{myAssets.length}</span>
-              <span className="stat-desc">Checked out under possession</span>
-            </div>
-            <div className="stat-icon warning">
-              <Monitor size={24} />
-            </div>
-          </div>
-        </div>
-
-        <div className="dashboard-sections">
-          {/* Chart */}
-          <div className="glass-panel section-card">
-            <div className="section-header">
-              <h3>
-                <Clock size={18} style={{ marginRight: '8px' }} />
-                Daily Hours Logging Activity
-              </h3>
-            </div>
-            <div style={{ width: '100%', height: 300 }}>
-              {dailyData.length === 0 ? (
-                <p className="stat-desc" style={{ textAlign: 'center', paddingTop: '100px' }}>No timesheet logs available for chart representation.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={dailyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(220, 95%, 60%)" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="hsl(220, 95%, 60%)" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" />
-                    <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} />
-                    <YAxis stroke="var(--text-secondary)" fontSize={12} />
-                    <Tooltip contentStyle={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }} />
-                    <Area type="monotone" dataKey="hours" stroke="var(--accent-primary)" fillOpacity={1} fill="url(#colorHours)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-
-          {/* Asset checklist info panel */}
-          <div className="glass-panel section-card">
-            <div className="section-header">
-              <h3>Recent Project Assignments</h3>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {activeProjects.length === 0 ? (
-                <p className="stat-desc">You are not currently assigned to any engagements.</p>
-              ) : (
-                activeProjects.map(proj => (
-                  <div key={proj._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-                    <div>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600 }}>{proj.name}</h4>
-                      <span className="stat-desc">Due: {new Date(proj.dueDate).toLocaleDateString()}</span>
-                    </div>
-                    <span className="badge badge-submitted">{proj.status.replace(/_/g, ' ')}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ==========================================
-  // MANAGER USER DASHBOARD
-  // ==========================================
-  if (user.role === 'manager') {
-    const pendingTS = stats.timesheets.filter(t => t.status === 'submitted');
-    const activeEngage = stats.engagements.filter(e => e.status === 'work_in_progress' || e.status === 'review_pending');
-    
-    // Group active timesheet hours by staff member for visualization
-    const staffHours = {};
-    stats.timesheets.forEach(ts => {
-      if (ts.status === 'approved') {
-        const name = ts.employeeId?.name || 'Unknown';
-        staffHours[name] = (staffHours[name] || 0) + ts.hours;
-      }
-    });
-
-    const chartData = Object.keys(staffHours).map(name => ({
-      name,
-      hours: staffHours[name]
-    })).slice(0, 5);
-
-    return (
-      <div>
-        <div className="dashboard-grid">
-          <div className="glass-panel stat-card">
-            <div className="stat-content">
-              <span className="stat-title">Pending Timesheet Reviews</span>
-              <span className="stat-value" style={{ color: pendingTS.length > 0 ? 'var(--warning)' : 'white' }}>
-                {pendingTS.length}
-              </span>
-              <span className="stat-desc">Awaiting manager sign-offs</span>
-            </div>
-            <div className="stat-icon warning">
-              <Clock size={24} />
-            </div>
-          </div>
-          <div className="glass-panel stat-card">
-            <div className="stat-content">
-              <span className="stat-title">Active Projects Scope</span>
-              <span className="stat-value">{activeEngage.length}</span>
-              <span className="stat-desc">Ongoing client assignments</span>
-            </div>
-            <div className="stat-icon primary">
-              <Briefcase size={24} />
-            </div>
-          </div>
-          <div className="glass-panel stat-card">
-            <div className="stat-content">
-              <span className="stat-title">Subordinates Active</span>
-              <span className="stat-value">{stats.employees.length}</span>
-              <span className="stat-desc">Total reporting staff members</span>
-            </div>
-            <div className="stat-icon success">
-              <Users size={24} />
-            </div>
-          </div>
-        </div>
-
-        <div className="dashboard-sections">
-          <div className="glass-panel section-card">
-            <div className="section-header">
-              <h3>
-                <Users size={18} style={{ marginRight: '8px' }} />
-                Subordinate Resource Logging (Approved Hours)
-              </h3>
-            </div>
-            <div style={{ width: '100%', height: 300 }}>
-              {chartData.length === 0 ? (
-                <p className="stat-desc" style={{ textAlign: 'center', paddingTop: '100px' }}>No subordinate logging details available yet.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" />
-                    <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} />
-                    <YAxis stroke="var(--text-secondary)" fontSize={12} />
-                    <Tooltip contentStyle={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)' }} />
-                    <Bar dataKey="hours" fill="hsl(220, 95%, 60%)" radius={[4, 4, 0, 0]}>
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={`hsl(220, 95%, ${60 - index * 4}%)`} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-
-          <div className="glass-panel section-card">
-            <div className="section-header">
-              <h3>Subordinate Pending Review List</h3>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {pendingTS.length === 0 ? (
-                <p className="stat-desc">No timesheets currently awaiting review. Great work!</p>
-              ) : (
-                pendingTS.slice(0, 4).map(ts => (
-                  <div key={ts._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-                    <div>
-                      <h4 style={{ fontSize: '0.9rem', fontWeight: 600 }}>{ts.employeeId?.name}</h4>
-                      <p className="stat-desc">{ts.engagementId?.name} ({ts.hours} hrs)</p>
-                    </div>
-                    <span className="badge badge-submitted">{ts.date}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ==========================================
-  // ADMIN USER DASHBOARD
-  // ==========================================
-  // In MERN, calculate billing summaries dynamically
-  // billing details: sum of approved hours * $150 per client
-  const clientBilling = {};
-  stats.timesheets.forEach(ts => {
-    if (ts.status === 'approved' && ts.engagementId?.billable) {
-      const clientName = ts.engagementId?.clientId?.name || ts.engagementId?.name || 'Internal';
-      clientBilling[clientName] = (clientBilling[clientName] || 0) + (ts.hours * 150);
-    }
-  });
-
-  const billingChartData = Object.keys(clientBilling).map(name => ({
-    name,
-    amount: clientBilling[name]
-  }));
-
-  const COLORS = ['hsl(220, 95%, 60%)', 'hsl(260, 90%, 55%)', 'hsl(142, 72%, 45%)', 'hsl(38, 92%, 50%)'];
-
-  return (
-    <div>
-      {/* KPI Cards */}
-      <div className="dashboard-grid">
-        <div className="glass-panel stat-card">
-          <div className="stat-content">
-            <span className="stat-title">System Client Portfolios</span>
-            <span className="stat-value">{stats.clients.length}</span>
-            <span className="stat-desc">External organizations</span>
-          </div>
-          <div className="stat-icon primary">
-            <Briefcase size={24} />
-          </div>
-        </div>
-        <div className="glass-panel stat-card">
-          <div className="stat-content">
-            <span className="stat-title">Total Active Staff</span>
-            <span className="stat-value">{stats.employees.length}</span>
-            <span className="stat-desc">Workspace users registered</span>
-          </div>
-          <div className="stat-icon success">
-            <Users size={24} />
-          </div>
-        </div>
-        <div className="glass-panel stat-card">
-          <div className="stat-content">
-            <span className="stat-title">IT Overdue Assets</span>
-            <span className="stat-value" style={{ color: stats.assetDashboard?.overdue.length > 0 ? 'var(--danger)' : 'white' }}>
-              {stats.assetDashboard?.overdue.length}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
+              {formatDate()}
             </span>
-            <span className="stat-desc">Devices past expected return</span>
-          </div>
-          <div className="stat-icon danger">
-            <ShieldAlert size={24} />
+            <div 
+              onClick={() => setActiveScreen('notifications')}
+              style={{ 
+                position: 'relative', 
+                cursor: 'pointer',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: 'var(--shadow-sm)'
+              }}
+            >
+              <Bell size={18} style={{ color: 'var(--text-secondary)' }} />
+              {myQueriedHours > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: '10px',
+                  right: '10px',
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: 'var(--danger)'
+                }} />
+              )}
+            </div>
           </div>
         </div>
-        <div className="glass-panel stat-card">
-          <div className="stat-content">
-            <span className="stat-title">Total Inventory Stock</span>
-            <span className="stat-value">{stats.assetDashboard?.summary.total}</span>
-            <span className="stat-desc">Devices in physical system</span>
+
+        {/* Metric cards */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: '20px',
+          marginBottom: '8px'
+        }}>
+          {/* Total Hours Card */}
+          <div className="glass-panel" style={{
+            padding: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '20px'
+          }}>
+            <div style={{
+              background: 'rgba(59, 130, 246, 0.15)',
+              borderRadius: '12px',
+              width: '52px',
+              height: '52px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <Clock size={24} style={{ color: '#3b82f6' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{myTotalHours} hrs</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '4px' }}>
+                Approved: {myApprovedHours} | Draft: {myDraftHours} | Queried: {myQueriedHours}
+              </div>
+            </div>
           </div>
-          <div className="stat-icon primary">
-            <Monitor size={24} />
+
+          {/* Active Projects Card */}
+          <div className="glass-panel" style={{
+            padding: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '20px'
+          }}>
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.15)',
+              borderRadius: '12px',
+              width: '52px',
+              height: '52px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <Briefcase size={24} style={{ color: '#10b981' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{myActiveProjects.length}</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '4px' }}>Active Projects</div>
+            </div>
+          </div>
+
+          {/* Issued Assets Card */}
+          <div className="glass-panel" style={{
+            padding: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '20px'
+          }}>
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.15)',
+              borderRadius: '12px',
+              width: '52px',
+              height: '52px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <Monitor size={24} style={{ color: '#f59e0b' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{myAssets.length}</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '4px' }}>Issued IT Devices</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions Title */}
+        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>Quick Actions</h3>
+
+        {/* Quick Actions Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+          gap: '16px',
+          marginBottom: '8px'
+        }}>
+          {filteredActions.map((action, i) => (
+            <div 
+              key={i}
+              onClick={() => setActiveScreen(action.screen)}
+              className="glass-panel"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+                <div style={{
+                  background: action.bg,
+                  borderRadius: '10px',
+                  width: '40px',
+                  height: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  {action.icon}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-primary)' }}>{action.title}</div>
+                  <div style={{
+                    fontSize: '0.78rem',
+                    color: 'var(--text-muted)',
+                    marginTop: '1px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    maxWidth: '170px'
+                  }}>{action.desc}</div>
+                </div>
+              </div>
+              <ChevronRight size={16} style={{ color: 'var(--text-muted)', marginLeft: '8px', flexShrink: 0 }} />
+            </div>
+          ))}
+        </div>
+
+        {/* Split Section: Recent Project Assignments & Timesheet Log Status */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+          gap: '24px'
+        }}>
+          {/* Recent Projects */}
+          <div className="glass-panel" style={{ padding: '24px' }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '20px' }}>Recent Project Assignments</h3>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {myActiveProjects.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '32px 0', margin: 0 }}>
+                  No projects assigned.
+                </p>
+              ) : (
+                myActiveProjects.slice(0, 4).map((proj, idx) => (
+                  <div 
+                    key={proj._id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '14px 0',
+                      borderBottom: idx === myActiveProjects.slice(0, 4).length - 1 ? 'none' : '1px solid var(--border-color)'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-primary)' }}>{proj.name}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        Client: {proj.clientId?.name || 'External'} &bull; Due: {new Date(proj.dueDate).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      background: 'rgba(59, 130, 246, 0.15)',
+                      color: '#3b82f6',
+                      textTransform: 'capitalize'
+                    }}>
+                      {proj.status.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Timesheet Log Status */}
+          <div className="glass-panel" style={{ padding: '24px' }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '20px' }}>Recent Timesheet Logs</h3>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {myTS.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '32px 0', margin: 0 }}>
+                  No timesheet logging details available.
+                </p>
+              ) : (
+                myTS.slice(0, 4).map((ts, idx) => (
+                  <div 
+                    key={ts._id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '14px 0',
+                      borderBottom: idx === myTS.slice(0, 4).length - 1 ? 'none' : '1px solid var(--border-color)'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {ts.engagementId?.name || 'Logged Hours'}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        {ts.date} &bull; {ts.hours} hrs
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      background: 
+                        ts.status === 'approved' ? 'rgba(16, 185, 129, 0.15)' : 
+                        ts.status === 'queried' ? 'rgba(239, 68, 68, 0.15)' : 
+                        ts.status === 'submitted' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(100, 116, 139, 0.15)',
+                      color: 
+                        ts.status === 'approved' ? '#10b981' : 
+                        ts.status === 'queried' ? '#ef4444' : 
+                        ts.status === 'submitted' ? '#f59e0b' : 'var(--text-secondary)'
+                    }}>
+                      {ts.status}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // MANAGER/ADMIN VIEW (Matches screenshot layout with app color theme)
+  // ==========================================
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Dashboard Top Header row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', margin: 0 }}>
+            Welcome back, <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{user.name}</span>. Here's your organization overview.
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
+            {formatDate()}
+          </span>
+          <div 
+            onClick={() => setActiveScreen('notifications')}
+            style={{ 
+              position: 'relative', 
+              cursor: 'pointer',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+          >
+            <Bell size={18} style={{ color: 'var(--text-secondary)' }} />
+            {(pendingApprovalsCount > 0 || openQueriesCount > 0) && (
+              <span style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: 'var(--danger)'
+              }} />
+            )}
           </div>
         </div>
       </div>
 
-      <div className="dashboard-sections">
-        {/* Billing reports dynamic chart */}
-        <div className="glass-panel section-card">
-          <div className="section-header">
-            <h3>
-              <DollarSign size={18} style={{ marginRight: '8px' }} />
-              Firm Billing Summary (Client Account Revenues)
-            </h3>
+      {/* Metric KPI cards */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+        gap: '16px',
+        marginBottom: '8px'
+      }}>
+        {/* Companies Card */}
+        <div className="glass-panel" style={{
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.15)',
+            borderRadius: '12px',
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <Building size={22} style={{ color: '#3b82f6' }} />
           </div>
-          <div style={{ width: '100%', height: 300 }}>
-            {billingChartData.length === 0 ? (
-              <p className="stat-desc" style={{ textAlign: 'center', paddingTop: '100px' }}>No billable approved timesheets found to compute revenues.</p>
+          <div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{companiesCount}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '2px' }}>Companies</div>
+          </div>
+        </div>
+
+        {/* Employees Card */}
+        <div className="glass-panel" style={{
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <div style={{
+            background: 'rgba(168, 85, 247, 0.15)',
+            borderRadius: '12px',
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <Users size={22} style={{ color: '#a855f7' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{employeesCount}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '2px' }}>Employees</div>
+          </div>
+        </div>
+
+        {/* Clients Card */}
+        <div className="glass-panel" style={{
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <div style={{
+            background: 'rgba(16, 185, 129, 0.15)',
+            borderRadius: '12px',
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <Briefcase size={22} style={{ color: '#10b981' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{clientsCount}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '2px' }}>Clients</div>
+          </div>
+        </div>
+
+        {/* Pending Approvals Card */}
+        <div className="glass-panel" style={{
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <div style={{
+            background: 'rgba(245, 158, 11, 0.15)',
+            borderRadius: '12px',
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <Clock size={22} style={{ color: '#f59e0b' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{pendingApprovalsCount}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '2px' }}>Pending Approvals</div>
+          </div>
+        </div>
+
+        {/* Open Queries Card */}
+        <div className="glass-panel" style={{
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            borderRadius: '12px',
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <MessageSquare size={22} style={{ color: '#ef4444' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{openQueriesCount}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '2px' }}>Open Queries</div>
+          </div>
+        </div>
+
+        {/* Approved Hours Card */}
+        <div className="glass-panel" style={{
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <div style={{
+            background: 'rgba(20, 184, 166, 0.15)',
+            borderRadius: '12px',
+            width: '48px',
+            height: '48px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <TrendingUp size={22} style={{ color: '#14b8a6' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{approvedHours.toFixed(1)}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '2px' }}>Approved Hours</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions Title */}
+      <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>Quick Actions</h3>
+
+      {/* Quick Actions Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+        gap: '16px',
+        marginBottom: '8px'
+      }}>
+        {filteredActions.map((action, i) => (
+          <div 
+            key={i}
+            onClick={() => setActiveScreen(action.screen)}
+            className="glass-panel"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              cursor: 'pointer'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+              <div style={{
+                background: action.bg,
+                borderRadius: '10px',
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                {action.icon}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-primary)' }}>{action.title}</div>
+                <div style={{
+                  fontSize: '0.78rem',
+                  color: 'var(--text-muted)',
+                  marginTop: '1px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '170px'
+                }}>{action.desc}</div>
+              </div>
+            </div>
+            <ChevronRight size={16} style={{ color: 'var(--text-muted)', marginLeft: '8px', flexShrink: 0 }} />
+          </div>
+        ))}
+      </div>
+
+      {/* Split section: Pending Approvals & Open Queries */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+        gap: '24px'
+      }}>
+        {/* Pending Approvals */}
+        <div className="glass-panel" style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Pending Approvals</h3>
+            <span 
+              onClick={() => setActiveScreen('timesheets')}
+              style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', fontWeight: 600, cursor: 'pointer' }}
+            >
+              View all &rarr;
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {pendingTS.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', padding: '32px 0', margin: 0 }}>
+                No timesheets awaiting review.
+              </p>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={billingChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" />
-                  <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={11} />
-                  <YAxis stroke="var(--text-secondary)" fontSize={12} unit="$" />
-                  <Tooltip formatter={(value) => [`$${value}`, 'Revenue']} contentStyle={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)' }} />
-                  <Bar dataKey="amount" fill="hsl(142, 72%, 45%)" radius={[4, 4, 0, 0]}>
-                    {billingChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              pendingTS.slice(0, 4).map((ts, idx) => (
+                <div 
+                  key={ts._id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '14px 0',
+                    borderBottom: idx === pendingTS.slice(0, 4).length - 1 ? 'none' : '1px solid var(--border-color)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      color: 'var(--warning)',
+                      borderRadius: '50%',
+                      width: '38px',
+                      height: '38px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      flexShrink: 0
+                    }}>
+                      <Clock size={16} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {ts.employeeId?.name || 'Staff Member'}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        {ts.date} &bull; {ts.engagementId?.clientId?.name || 'Client'} &bull; {ts.engagementId?.name || 'Engagement'}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--warning)' }}>
+                    {ts.hours}h
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
 
-        {/* Company Billing details list */}
-        <div className="glass-panel section-card">
-          <div className="section-header">
-            <h3>Account Balances</h3>
+        {/* Open Queries */}
+        <div className="glass-panel" style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Open Queries</h3>
+            <span 
+              onClick={() => setActiveScreen('timesheets')}
+              style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', fontWeight: 600, cursor: 'pointer' }}
+            >
+              View all &rarr;
+            </span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {billingChartData.length === 0 ? (
-              <p className="stat-desc">No billing accounts calculated. Log approved hours.</p>
+
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {queriedTS.length === 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '150px' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', textAlign: 'center', margin: 0 }}>
+                  No open queries
+                </p>
+              </div>
             ) : (
-              billingChartData.map((bill, index) => (
-                <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-                  <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 600 }}>{bill.name}</h4>
-                    <span className="stat-desc">Hourly Rate: $150 / hr</span>
+              queriedTS.slice(0, 4).map((ts, idx) => (
+                <div 
+                  key={ts._id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '14px 0',
+                    borderBottom: idx === queriedTS.slice(0, 4).length - 1 ? 'none' : '1px solid var(--border-color)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      color: 'var(--danger)',
+                      borderRadius: '50%',
+                      width: '38px',
+                      height: '38px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      flexShrink: 0
+                    }}>
+                      <MessageSquare size={16} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {ts.employeeId?.name || 'Staff Member'}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        {ts.date} &bull; {ts.engagementId?.clientId?.name || 'Client'} &bull; {ts.engagementId?.name || 'Engagement'}
+                      </div>
+                    </div>
                   </div>
-                  <strong style={{ color: 'var(--success)', fontSize: '1.1rem' }}>${bill.amount.toLocaleString()}</strong>
+                  <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--danger)' }}>
+                    {ts.hours}h
+                  </div>
                 </div>
               ))
             )}

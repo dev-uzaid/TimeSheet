@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, Check, Plus, MessageSquare, AlertCircle, CheckCircle, XCircle, Send, LayoutGrid, List } from 'lucide-react';
 import { api } from '../../utils/api';
 
@@ -31,12 +31,19 @@ export default function TimesheetModule({ user }) {
   const [rejectComment, setRejectComment] = useState('');
   const [rejectSubmitting, setRejectSubmitting] = useState(false);
 
+  // Raise query state
+  const [showQueryModal, setShowQueryModal] = useState(false);
+  const [queryTSId, setQueryTSId] = useState(null);
+  const [queryComment, setQueryComment] = useState('');
+  const [querySubmitting, setQuerySubmitting] = useState(false);
+
   // Chat queries state
   const [activeQueryTS, setActiveQueryTS] = useState(null); // timesheet object
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
 
   // Edit / Rework state
   const [editingTS, setEditingTS] = useState(null);
@@ -60,9 +67,50 @@ export default function TimesheetModule({ user }) {
     try {
       const data = await api.get('/engagements');
       setEngagements(data);
-      if (data.length > 0) setSelectedEngage(data[0]._id);
+      
+      const filtered = data.filter(e => {
+        if (user.role === 'staff') {
+          return e.assignedStaff?.some(s => (typeof s === 'object' ? s._id : s) === user._id);
+        }
+        return true;
+      });
+
+      if (filtered.length > 0) {
+        setSelectedEngage(filtered[0]._id);
+        setWorkType(filtered[0].workType || '');
+      }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const filteredEngagements = engagements.filter(e => {
+    if (user.role === 'staff') {
+      return e.assignedStaff?.some(s => {
+        const id = typeof s === 'object' ? s._id : s;
+        return id === user._id;
+      });
+    }
+    return true;
+  });
+
+  const selectedEngagement = filteredEngagements.find(e => e._id === selectedEngage);
+
+  const handleEngagementChange = (engageId) => {
+    setSelectedEngage(engageId);
+    const selected = filteredEngagements.find(e => e._id === engageId);
+    if (selected) {
+      setWorkType(selected.workType || '');
+    }
+  };
+
+  const selectedEditEngagement = filteredEngagements.find(e => e._id === editEngagementId);
+
+  const handleEditEngagementChange = (engageId) => {
+    setEditEngagementId(engageId);
+    const selected = filteredEngagements.find(e => e._id === engageId);
+    if (selected) {
+      setEditWorkType(selected.workType || '');
     }
   };
 
@@ -90,6 +138,32 @@ export default function TimesheetModule({ user }) {
     initData();
   }, []);
 
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (activeQueryTS) {
+      scrollToBottom();
+    }
+  }, [messages, activeQueryTS]);
+
+  useEffect(() => {
+    if (!activeQueryTS) return;
+
+    const pollMessages = async () => {
+      try {
+        const data = await api.get(`/timesheets/${activeQueryTS._id}/queries`);
+        setMessages(data);
+      } catch (err) {
+        console.error('Failed to poll chat messages:', err);
+      }
+    };
+
+    const interval = setInterval(pollMessages, 3000);
+    return () => clearInterval(interval);
+  }, [activeQueryTS]);
+
   // Submit Single Row
   const handleLogHours = async (e) => {
     e.preventDefault();
@@ -113,17 +187,16 @@ export default function TimesheetModule({ user }) {
     }
   };
 
-  // Submit Bulk Rows
   const handleBulkSubmit = async (e) => {
     e.preventDefault();
     const entries = [];
     
-    engagements.forEach(engage => {
+    filteredEngagements.forEach(engage => {
       const hoursLogged = parseFloat(bulkHours[engage._id]);
       if (hoursLogged > 0) {
         entries.push({
           engagementId: engage._id,
-          workType: bulkWorkTypes[engage._id] || 'Audit Work',
+          workType: bulkWorkTypes[engage._id] || engage.workType || 'Audit Work',
           hours: hoursLogged,
           markedDone: !!bulkDone[engage._id]
         });
@@ -203,6 +276,33 @@ export default function TimesheetModule({ user }) {
       alert(`Error: ${err.message}`);
     } finally {
       setRejectSubmitting(false);
+    }
+  };
+
+  // Manager Raise Query
+  const handleRaiseQueryClick = (id) => {
+    setQueryTSId(id);
+    setQueryComment('');
+    setShowQueryModal(true);
+  };
+
+  const handleQuerySubmit = async (e) => {
+    e.preventDefault();
+    if (!queryComment) return;
+    try {
+      setQuerySubmitting(true);
+      await api.put(`/timesheets/${queryTSId}/query`, {
+        queryComment: queryComment
+      });
+      setShowQueryModal(false);
+      setQueryTSId(null);
+      setQueryComment('');
+      fetchPendingApprovals();
+      fetchTimesheets();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    } finally {
+      setQuerySubmitting(false);
     }
   };
 
@@ -356,21 +456,21 @@ const fetchWorkTypes=async()=>{
                           <span className={`badge badge-${ts.status}`}>
                             {ts.status}
                           </span>
-                          {ts.status === 'rejected' && (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '4px', maxWidth: '200px' }}>
-                              Reason: {ts.rejectionComment}
+                          {(ts.status === 'rejected' || ts.status === 'queried') && (
+                            <div style={{ fontSize: '0.75rem', color: ts.status === 'queried' ? 'var(--warning)' : 'var(--danger)', marginTop: '4px', maxWidth: '200px' }}>
+                              {ts.status === 'queried' ? 'Query' : 'Reason'}: {ts.rejectionComment}
                             </div>
                           )}
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                            {ts.status === 'rejected' && (
+                            {(ts.status === 'rejected' || ts.status === 'queried') && (
                               <button onClick={() => handleOpenQueryChat(ts)} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px', borderColor: 'var(--warning)', color: 'var(--warning)' }}>
                                 <MessageSquare size={14} />
                                 Query Chat
                               </button>
                             )}
-                            {(ts.status === 'draft' || ts.status === 'rejected') && (
+                            {(ts.status === 'draft' || ts.status === 'rejected' || ts.status === 'queried') && (
                               <button onClick={() => handleEditClick(ts)} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px' }}>
                                 Rework
                               </button>
@@ -394,8 +494,9 @@ const fetchWorkTypes=async()=>{
               <form onSubmit={handleLogHours}>
                 <div className="form-group">
                   <label>Client Project / Engagement</label>
-                  <select className="form-control" value={selectedEngage} onChange={(e) => setSelectedEngage(e.target.value)}>
-                    {engagements.map(e => (
+                  <select className="form-control" value={selectedEngage} onChange={(e) => handleEngagementChange(e.target.value)}>
+                    <option value="unassigned">Unassigned</option>
+                    {filteredEngagements.map(e => (
                       <option key={e._id} value={e._id}>{e.name} ({e.clientId?.name})</option>
                     ))}
                   </select>
@@ -403,12 +504,11 @@ const fetchWorkTypes=async()=>{
                 <div className="form-group">
                   <label>Work Type</label>
                   <select className="form-control" value={workType} onChange={(e) => setWorkType(e.target.value)}>
-                    <option value="">Select Work Type</option>
-                    {workTypes.map((w) => (
-                      <option key={w._id} value={w.name}>
-                        {w.name}
-                      </option>
-                    ))}
+                    {selectedEngagement ? (
+                      <option value={selectedEngagement.workType}>{selectedEngagement.workType}</option>
+                    ) : (
+                      <option value="">No Work Type Available</option>
+                    )}
                   </select>
                 </div>
                 <div className="form-row">
@@ -457,7 +557,7 @@ const fetchWorkTypes=async()=>{
               </p>
             </div>
 
-            {engagements.length === 0 ? (
+            {filteredEngagements.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '32px' }}>
                 <AlertCircle size={32} style={{ color: 'var(--warning)', marginBottom: '12px' }} />
                 <p>You have no active engagements assigned to your employee account.</p>
@@ -474,7 +574,7 @@ const fetchWorkTypes=async()=>{
                     </tr>
                   </thead>
                   <tbody>
-                    {engagements.map((engage) => (
+                    {filteredEngagements.map((engage) => (
                       <tr key={engage._id}>
                         <td style={{ fontWeight: 600 }}>
                           <div>{engage.name}</div>
@@ -483,19 +583,14 @@ const fetchWorkTypes=async()=>{
                         <td>
                           <select 
                             className="form-control" 
-                            value={bulkWorkTypes[engage._id] || (workTypes[0]?.name || '')}
+                            value={bulkWorkTypes[engage._id] || engage.workType || ''}
                             onChange={(e) => setBulkWorkTypes({
                               ...bulkWorkTypes,
                               [engage._id]: e.target.value
                             })}
                             style={{ padding: '8px 12px', fontSize: '0.875rem' }}
                           >
-                            <option value="">Select Work Type</option>
-                            {workTypes.map((w) => (
-                              <option key={w._id} value={w.name}>
-                                {w.name}
-                              </option>
-                            ))}
+                            <option value={engage.workType}>{engage.workType}</option>
                           </select>
                         </td>
                         <td>
@@ -537,7 +632,7 @@ const fetchWorkTypes=async()=>{
             )}
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button type="submit" className="btn btn-primary" disabled={bulkSaving || engagements.length === 0}>
+              <button type="submit" className="btn btn-primary" disabled={bulkSaving || filteredEngagements.length === 0}>
                 <Clock size={18} />
                 {bulkSaving ? 'Saving Bulk logs...' : 'Save Daily Bulk Entries'}
               </button>
@@ -562,13 +657,14 @@ const fetchWorkTypes=async()=>{
                   <th>Engagement / Client</th>
                   <th>Work Type</th>
                   <th>Logged Hours</th>
+                  <th>Status</th>
                   <th style={{ textAlign: 'right' }}>Review Choice</th>
                 </tr>
               </thead>
               <tbody>
                 {pendingApprovals.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
                       No timesheets currently pending your review.
                     </td>
                   </tr>
@@ -583,12 +679,28 @@ const fetchWorkTypes=async()=>{
                       </td>
                       <td>{ts.workType}</td>
                       <td style={{ fontWeight: 600 }}>{ts.hours} hrs</td>
+                      <td>
+                        <span className={`badge badge-${ts.status}`}>
+                          {ts.status}
+                        </span>
+                      </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                           <button onClick={() => handleApprove(ts._id)} className="btn btn-primary btn-sm" style={{ padding: '6px 12px', background: 'var(--success)' }}>
                             <Check size={14} />
                             Approve
                           </button>
+                          {ts.status === 'queried' ? (
+                            <button onClick={() => handleOpenQueryChat(ts)} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px', borderColor: 'var(--warning)', color: 'var(--warning)' }}>
+                              <MessageSquare size={14} />
+                              Query Chat
+                            </button>
+                          ) : (
+                            <button onClick={() => handleRaiseQueryClick(ts._id)} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px', borderColor: 'var(--warning)', color: 'var(--warning)' }}>
+                              <MessageSquare size={14} />
+                              Raise Query
+                            </button>
+                          )}
                           <button onClick={() => handleRejectClick(ts._id)} className="btn btn-danger btn-sm" style={{ padding: '6px 12px' }}>
                             Reject
                           </button>
@@ -646,6 +758,45 @@ const fetchWorkTypes=async()=>{
         </div>
       )}
 
+      {/* Raise query modal */}
+      {showQueryModal && (
+        <div className="modal-overlay">
+          <div className="glass-panel modal-content">
+            <div className="modal-header">
+              <h3>Raise Timesheet Query</h3>
+              <button className="modal-close" onClick={() => {
+                setShowQueryModal(false);
+                setQueryTSId(null);
+                setQueryComment('');
+              }}>Close</button>
+            </div>
+            <form onSubmit={handleQuerySubmit}>
+              <div className="form-group">
+                <label>Query / Clarification Comment (Mandatory)</label>
+                <textarea 
+                  className="form-control" 
+                  rows="4" 
+                  required
+                  placeholder="Detail the questions or clarification needed from the employee..."
+                  value={queryComment}
+                  onChange={(e) => setQueryComment(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '16px' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => {
+                  setShowQueryModal(false);
+                  setQueryTSId(null);
+                  setQueryComment('');
+                }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" style={{ background: 'var(--warning)', color: '#000000' }} disabled={querySubmitting}>
+                  {querySubmitting ? 'Raising Query...' : 'Raise Query'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Query Chat Modal */}
       {activeQueryTS && (
         <div className="modal-overlay">
@@ -667,23 +818,26 @@ const fetchWorkTypes=async()=>{
                 {chatLoading ? (
                   <p className="stat-desc" style={{ textAlign: 'center' }}>Loading conversation history...</p>
                 ) : (
-                  messages.map((msg) => {
-                    const isMe = msg.senderId?._id === user._id;
-                    const isSystem = msg.message.startsWith('System Alert');
-                    return (
-                      <div 
-                        key={msg._id} 
-                        className={`chat-bubble ${isSystem ? 'system' : isMe ? 'sent' : 'received'}`}
-                      >
-                        {!isSystem && (
-                          <span className="chat-sender-info">
-                            {msg.senderId?.name} ({msg.senderId?.role})
-                          </span>
-                        )}
-                        <span>{msg.message}</span>
-                      </div>
-                    );
-                  })
+                  <>
+                    {messages.map((msg) => {
+                      const isMe = msg.senderId?._id === user._id;
+                      const isSystem = msg.message.startsWith('System Alert');
+                      return (
+                        <div 
+                          key={msg._id} 
+                          className={`chat-bubble ${isSystem ? 'system' : isMe ? 'sent' : 'received'}`}
+                        >
+                          {!isSystem && (
+                            <span className="chat-sender-info">
+                              {msg.senderId?.name} ({msg.senderId?.role})
+                            </span>
+                          )}
+                          <span>{msg.message}</span>
+                        </div>
+                      );
+                    })}
+                    <div ref={chatEndRef} />
+                  </>
                 )}
               </div>
 
@@ -716,8 +870,8 @@ const fetchWorkTypes=async()=>{
             <form onSubmit={handleEditSubmit}>
               <div className="form-group">
                 <label>Logged Engagement</label>
-                <select className="form-control" value={editEngagementId} onChange={(e) => setEditEngagementId(e.target.value)}>
-                  {engagements.map(e => (
+                <select className="form-control" value={editEngagementId} onChange={(e) => handleEditEngagementChange(e.target.value)}>
+                  {filteredEngagements.map(e => (
                     <option key={e._id} value={e._id}>{e.name}</option>
                   ))}
                 </select>
@@ -725,12 +879,11 @@ const fetchWorkTypes=async()=>{
               <div className="form-group">
                 <label>Work Type</label>
                 <select className="form-control" value={editWorkType} onChange={(e) => setEditWorkType(e.target.value)}>
-                  <option value="">Select Work Type</option>
-                  {workTypes.map((w) => (
-                    <option key={w._id} value={w.name}>
-                      {w.name}
-                    </option>
-                  ))}
+                  {selectedEditEngagement ? (
+                    <option value={selectedEditEngagement.workType}>{selectedEditEngagement.workType}</option>
+                  ) : (
+                    <option value="">No Work Type Available</option>
+                  )}
                 </select>
               </div>
               <div className="form-row">
