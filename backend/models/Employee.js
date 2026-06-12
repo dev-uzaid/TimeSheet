@@ -10,7 +10,9 @@ const employeeSchema = new mongoose.Schema({
     type:mongoose.Schema.Types.ObjectId,
     ref:'Company'
   },
-  managerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', default: null }
+  managerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', default: null },
+  resetPasswordToken: { type: String, default: null },
+  resetPasswordExpire: { type: Date, default: null }
 }, { timestamps: true });
 
 employeeSchema.pre('save', async function(next) {

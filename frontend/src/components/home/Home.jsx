@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Clock, Briefcase, ShieldAlert, Monitor, Users, Inbox, LogOut, Lock, Mail, Building, FileText } from 'lucide-react';
+import { Layout, Clock, Briefcase, ShieldAlert, Monitor, Users, Inbox, LogOut, Lock, Mail, Building, FileText, ChevronDown, ChevronUp, Cpu, History, CheckCircle2, CheckSquare, MessageSquare } from 'lucide-react';
 import { api, getStoredToken, getStoredUser, setStoredToken, setStoredUser, removeStoredToken, removeStoredUser } from '../../utils/api';
+import { Link } from 'react-router-dom';
+import logoImg from '../../assets/bhargava_logo.jpg';
+
 
 // Components
 import {
@@ -11,7 +14,9 @@ import {
   DefaulterModule,
   NotificationInbox,
   ClientModule,
-  WorkType
+  WorkType,
+  WorkInProgress,
+  ClientTimeSummary
 } from '../index';
 import Employee from '../employee/Employee';
 import EmployeeWorkReport from '../EmployeeWorkReport/EmployeeWorkReport';
@@ -21,6 +26,8 @@ export default function Home() {
   const [token, setToken] = useState(getStoredToken());
   const [user, setUser] = useState(getStoredUser());
   const [activeScreen, setActiveScreen] = useState('dashboard');
+  const [timeMenuOpen, setTimeMenuOpen] = useState(true);
+  const [assetMenuOpen, setAssetMenuOpen] = useState(true);
   
   // Login form state
   const [email, setEmail] = useState('');
@@ -107,11 +114,13 @@ export default function Home() {
       <div className="login-container">
         <div className="glass-panel login-card">
           <div className="login-header">
-            <div className="login-logo">
-              <Briefcase size={48} />
-            </div>
-            <h2>Professional Services Hub</h2>
-            <p>Sign in to manage timesheets and IT configurations</p>
+            <img 
+              src={logoImg} 
+              alt="Bhargava & Co." 
+              style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', margin: '0 auto 16px', display: 'block', border: '3px solid rgba(255, 255, 255, 0.15)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }} 
+            />
+            <h2>Bhargava & Co.</h2>
+            <p>Chartered Accountants - Timesheet Management</p>
           </div>
 
           <form onSubmit={handleLogin}>
@@ -132,7 +141,12 @@ export default function Home() {
             </div>
 
             <div className="form-group">
-              <label>Password</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ marginBottom: 0 }}>Password</label>
+                <Link to="/forgot-password" style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 500 }}>
+                  Forgot Password?
+                </Link>
+              </div>
               <div style={{ position: 'relative' }}>
                 <input 
                   type="password" 
@@ -199,109 +213,308 @@ export default function Home() {
     <div className="app-container">
       {/* Sidebar Navigation */}
       <aside className="sidebar">
-        <div className="sidebar-logo">
-          <Briefcase size={24} />
-          <h2>TimeSheet App</h2>
+        <div className="sidebar-logo-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 8px 24px 8px', borderBottom: '1px solid var(--border-color)', marginBottom: '16px' }}>
+          <img 
+            src={logoImg} 
+            alt="Logo" 
+            style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(255, 255, 255, 0.15)', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }} 
+          />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.02em', textTransform: 'uppercase', fontFamily: "'Outfit', sans-serif" }}>
+              Bhargava & Co
+            </span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 500, letterSpacing: '0.01em' }}>
+              Timesheet management
+            </span>
+          </div>
         </div>
 
-        <ul className="nav-links">
-          <li 
-            className={`nav-item ${activeScreen === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveScreen('dashboard')}
-          >
-            <Layout size={18} />
-            Dashboard
-          </li>
+        <ul className="nav-links " style={{overflowY: "auto",maxHeight: "100vh",  scrollbarWidth: "none",msOverflowStyle: "none"}}>
+          {user.role === 'manager' ? (
+            <>
+              <li 
+                className={`nav-item ${activeScreen === 'dashboard' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('dashboard')}
+              >
+                <Layout size={16} />
+                Dashboard
+              </li>
 
-          <li 
-            className={`nav-item ${activeScreen === 'timesheets' ? 'active' : ''}`}
-            onClick={() => setActiveScreen('timesheets')}
-          >
-            <Clock size={18} />
-            Timesheet Desk
-          </li>
-         {(user.role === 'manager' || user.role === 'admin') && (
-            <li 
-              className={`nav-item ${activeScreen === 'employees' ? 'active' : ''}`}
-              onClick={() => setActiveScreen('employees')}
-            >
-              <Briefcase size={18} />
-              Employees
-            </li>
-          )}
-          {(user.role === 'manager' || user.role === 'admin') && (
-            <li 
-              className={`nav-item ${activeScreen === 'workreport' ? 'active' : ''}`}
-              onClick={() => setActiveScreen('workreport')}
-            >
-              <Briefcase size={18} />
-              Work Report
-            </li>
-          )}
-          {(user.role === 'manager' || user.role === 'admin') && (
-            <li 
-              className={`nav-item ${activeScreen === 'clients' ? 'active' : ''}`}
-              onClick={() => setActiveScreen('clients')}
-            >
-              <Building size={18} />
-              Clients
-            </li>
-          )}
-          {(user.role === 'manager' || user.role === 'admin') && (
-            <li 
-              className={`nav-item ${activeScreen === 'worktypes' ? 'active' : ''}`}
-              onClick={() => setActiveScreen('worktypes')}
-            >
-              <FileText size={18} />
-              Work Types
-            </li>
-          )}
-          {(user.role === 'manager' || user.role === 'admin') && (
-            <li 
-              className={`nav-item ${activeScreen === 'engagements' ? 'active' : ''}`}
-              onClick={() => setActiveScreen('engagements')}
-            >
-              <Briefcase size={18} />
-              Engagements
-            </li>
-          )}
-          {(user.role === 'manager' || user.role === 'admin') && (
-            <li 
-              className={`nav-item ${activeScreen === 'company' ? 'active' : ''}`}
-              onClick={() => setActiveScreen('company')}
-            >
-              <Building size={18} />
-             Company
-            </li>
+              <li 
+                className={`nav-item ${activeScreen === 'my-timesheets' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('my-timesheets')}
+              >
+                <Clock size={16} />
+                My Timesheets
+              </li>
+
+              <li 
+                className={`nav-item ${activeScreen === 'approvals-screen' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('approvals-screen')}
+              >
+                <CheckCircle2 size={16} />
+                Approvals
+              </li>
+
+              <li 
+                className={`nav-item ${activeScreen === 'queries-screen' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('queries-screen')}
+              >
+                <MessageSquare size={16} />
+                Timesheet Queries
+              </li>
+
+              <li 
+                className={`nav-item ${activeScreen === 'clients' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('clients')}
+              >
+                <Building size={16} />
+                Clients
+              </li>
+
+              <li 
+                className={`nav-item ${activeScreen === 'engagements' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('engagements')}
+              >
+                <CheckSquare size={16} />
+                Engagements
+              </li>
+
+              <li 
+                className={`nav-item ${activeScreen === 'workreport' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('workreport')}
+              >
+                <Users size={16} />
+                Employee Work Report
+              </li>
+
+              <li 
+                className={`nav-item ${activeScreen === 'wip' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('wip')}
+              >
+                <Clock size={16} />
+                Work in Progress
+              </li>
+
+              <li 
+                className={`nav-item ${activeScreen === 'client-time-summary' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('client-time-summary')}
+              >
+                <Clock size={16} />
+                Client Time Summary
+              </li>
+            </>
+          ) : (
+            <>
+              {/* TIME MANAGEMENT SECTION */}
+              <li 
+                className="nav-item-header" 
+                onClick={() => setTimeMenuOpen(!timeMenuOpen)}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  padding: '12px 16px', 
+                  color: 'var(--text-secondary)', 
+                  fontWeight: 700, 
+                  fontSize: '0.8rem', 
+                  letterSpacing: '0.05em', 
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  marginTop: '12px'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={16} />
+                  Time Management
+                </span>
+                {timeMenuOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </li>
+            </>
           )}
 
-          <li 
-            className={`nav-item ${activeScreen === 'assets' ? 'active' : ''}`}
-            onClick={() => setActiveScreen('assets')}
-          >
-            <Monitor size={18} />
-            IT Assets
-          </li>
+          {user.role !== 'manager' && timeMenuOpen && (
+            <>
+              <li 
+                className={`nav-item ${activeScreen === 'dashboard' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('dashboard')}
+                style={{ paddingLeft: '28px' }}
+              >
+                <Layout size={16} />
+                Dashboard
+              </li>
 
-          {user.role === 'admin' && (
-            <li 
-              className={`nav-item ${activeScreen === 'defaulters' ? 'active' : ''}`}
-              onClick={() => setActiveScreen('defaulters')}
-            >
-              <ShieldAlert size={18} />
-              Defaulter Engine
-            </li>
+              <li 
+                className={`nav-item ${activeScreen === 'timesheets' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('timesheets')}
+                style={{ paddingLeft: '28px' }}
+              >
+                <Clock size={16} />
+                Timesheet Desk
+              </li>
+
+              {(user.role === 'manager' || user.role === 'admin') && (
+                <li 
+                  className={`nav-item ${activeScreen === 'employees' ? 'active' : ''}`}
+                  onClick={() => setActiveScreen('employees')}
+                  style={{ paddingLeft: '28px' }}
+                >
+                  <Users size={16} />
+                  Employees
+                </li>
+              )}
+              {(user.role === 'manager' || user.role === 'admin') && (
+                <li 
+                  className={`nav-item ${activeScreen === 'workreport' ? 'active' : ''}`}
+                  onClick={() => setActiveScreen('workreport')}
+                  style={{ paddingLeft: '28px' }}
+                >
+                  <FileText size={16} />
+                  Work Report
+                </li>
+              )}
+              {(user.role === 'manager' || user.role === 'admin') && (
+                <li 
+                  className={`nav-item ${activeScreen === 'clients' ? 'active' : ''}`}
+                  onClick={() => setActiveScreen('clients')}
+                  style={{ paddingLeft: '28px' }}
+                >
+                  <Building size={16} />
+                  Clients
+                </li>
+              )}
+              {(user.role === 'manager' || user.role === 'admin') && (
+                <li 
+                  className={`nav-item ${activeScreen === 'worktypes' ? 'active' : ''}`}
+                  onClick={() => setActiveScreen('worktypes')}
+                  style={{ paddingLeft: '28px' }}
+                >
+                  <FileText size={16} />
+                  Work Types
+                </li>
+              )}
+              {(user.role === 'manager' || user.role === 'admin') && (
+                <li 
+                  className={`nav-item ${activeScreen === 'engagements' ? 'active' : ''}`}
+                  onClick={() => setActiveScreen('engagements')}
+                  style={{ paddingLeft: '28px' }}
+                >
+                  <Briefcase size={16} />
+                  Engagements
+                </li>
+              )}
+              {(user.role === 'manager' || user.role === 'admin') && (
+                <li 
+                  className={`nav-item ${activeScreen === 'company' ? 'active' : ''}`}
+                  onClick={() => setActiveScreen('company')}
+                  style={{ paddingLeft: '28px' }}
+                >
+                  <Building size={16} />
+                  Company
+                </li>
+              )}
+              {user.role === 'admin' && (
+                <li 
+                  className={`nav-item ${activeScreen === 'defaulters' ? 'active' : ''}`}
+                  onClick={() => setActiveScreen('defaulters')}
+                  style={{ paddingLeft: '28px' }}
+                >
+                  <ShieldAlert size={16} />
+                  Defaulter Engine
+                </li>
+              )}
+
+              <li 
+                className={`nav-item ${activeScreen === 'notifications' ? 'active' : ''}`}
+                onClick={() => setActiveScreen('notifications')}
+                style={{ paddingLeft: '28px' }}
+              >
+                <Inbox size={16} />
+                Alerts Inbox
+                {unreadCount > 0 && <span className="notification-badge" />}
+              </li>
+            </>
           )}
 
-          <li 
-            className={`nav-item ${activeScreen === 'notifications' ? 'active' : ''}`}
-            onClick={() => setActiveScreen('notifications')}
-            style={{ position: 'relative' }}
-          >
-            <Inbox size={18} />
-            Alerts Inbox
-            {unreadCount > 0 && <span className="notification-badge" />}
-          </li>
+          {/* ASSET MANAGEMENT SECTION */}
+          {user.role !== 'manager' && (
+            <>
+              <li 
+                className="nav-item-header" 
+                onClick={() => setAssetMenuOpen(!assetMenuOpen)}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  padding: '12px 16px', 
+                  color: 'var(--text-secondary)', 
+                  fontWeight: 700, 
+                  fontSize: '0.8rem', 
+                  letterSpacing: '0.05em', 
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  marginTop: '12px'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Monitor size={16} />
+                  Asset Management
+                </span>
+                {assetMenuOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </li>
+
+              {assetMenuOpen && (
+                <>
+                  <li 
+                    className={`nav-item ${activeScreen === 'asset-dashboard' ? 'active' : ''}`}
+                    onClick={() => setActiveScreen('asset-dashboard')}
+                    style={{ paddingLeft: '28px' }}
+                  >
+                    <Monitor size={16} />
+                    Asset Dashboard
+                  </li>
+
+                  <li 
+                    className={`nav-item ${activeScreen === 'asset-inventory' ? 'active' : ''}`}
+                    onClick={() => setActiveScreen('asset-inventory')}
+                    style={{ paddingLeft: '28px' }}
+                  >
+                    <Monitor size={16} />
+                    Asset Inventory
+                  </li>
+
+                  <li 
+                    className={`nav-item ${activeScreen === 'asset-history' ? 'active' : ''}`}
+                    onClick={() => setActiveScreen('asset-history')}
+                    style={{ paddingLeft: '28px' }}
+                  >
+                    <History size={16} />
+                    Asset History
+                  </li>
+
+                  <li 
+                    className={`nav-item ${activeScreen === 'hardware-configs' ? 'active' : ''}`}
+                    onClick={() => setActiveScreen('hardware-configs')}
+                    style={{ paddingLeft: '28px' }}
+                  >
+                    <Cpu size={16} />
+                    Hardware Configs
+                  </li>
+
+                  <li 
+                    className={`nav-item ${activeScreen === 'asset-reports' ? 'active' : ''}`}
+                    onClick={() => setActiveScreen('asset-reports')}
+                    style={{ paddingLeft: '28px' }}
+                  >
+                    <FileText size={16} />
+                    Asset Reports
+                  </li>
+                </>
+              )}
+            </>
+          )}
+
+          {/* GLOBAL FLAT ACTIONS */}
         </ul>
 
         {/* Sidebar Footer User Details */}
@@ -322,7 +535,11 @@ export default function Home() {
           <header className="header">
             <div className="page-title">
               <h1 style={{ textTransform: 'capitalize' }}>
-                {activeScreen === 'timesheets' ? 'Weekly Timesheets' : activeScreen === 'assets' ? 'IT Asset Management' : activeScreen === 'defaulters' ? 'Compliance Defaulters' : activeScreen === 'notifications' ? 'Alerts Inbox' : activeScreen}
+                {activeScreen === 'timesheets' ? 'Weekly Timesheets' : 
+                 (activeScreen === 'assets' || activeScreen.startsWith('asset-') || activeScreen === 'hardware-configs') ? 'IT Asset Management' : 
+                 activeScreen === 'defaulters' ? 'Compliance Defaulters' : 
+                 activeScreen === 'notifications' ? 'Alerts Inbox' : 
+                 activeScreen}
               </h1>
             </div>
             <div className="header-actions">
@@ -341,13 +558,20 @@ export default function Home() {
         <div className="content-body">
           {activeScreen === 'dashboard' && <Dashboard user={user} setActiveScreen={setActiveScreen} />}
           {activeScreen === 'timesheets' && <TimesheetModule user={user} />}
+          {activeScreen === 'my-timesheets' && <TimesheetModule user={user} initialTab="entries" />}
+          {activeScreen === 'approvals-screen' && <TimesheetModule key="approvals-mod" user={user} initialTab="approvals" />}
+          {activeScreen === 'queries-screen' && <TimesheetModule key="queries-mod" user={user} initialTab="queries" />}
           {activeScreen==='employees'&&(user.role==='manager'||user.role==='admin')&&<Employee/>}
           {activeScreen==='workreport'&&(user.role==='manager'||user.role==='admin')&&<EmployeeWorkReport/>}
           {activeScreen === 'clients' && (user.role === 'manager' || user.role === 'admin') && <ClientModule />}
+          {activeScreen === 'wip' && <WorkInProgress />}
+          {activeScreen === 'client-time-summary' && <ClientTimeSummary />}
           {activeScreen === 'worktypes' && (user.role === 'manager' || user.role === 'admin') && <WorkType />}
           {activeScreen === 'engagements' && (user.role === 'manager' || user.role === 'admin') && <EngagementModule user={user} />}
           {activeScreen ==='company'&&(user.role==='manager'||user.role==='admin')&&<Company/>}
-          {activeScreen === 'assets' && <ITAssetModule user={user} />}
+          {(activeScreen === 'assets' || activeScreen.startsWith('asset-') || activeScreen === 'hardware-configs') && (
+            <ITAssetModule user={user} subScreen={activeScreen} />
+          )}
           {activeScreen === 'defaulters' && user.role === 'admin' && <DefaulterModule />}
           {activeScreen === 'notifications' && (
             <NotificationInbox 

@@ -101,24 +101,42 @@ export const seedDatabase = async () => {
 
     // 4. Create Hardware Configurations
     const m3mac = await HardwareConfig.create({
+      brand: 'Apple',
       modelName: 'MacBook Pro M3 Pro',
+      deviceType: 'Laptop',
       cpu: 'M3 Pro 11-core',
       ram: '18GB',
-      storage: '512GB SSD'
+      storage: '512GB SSD',
+      graphicsCard: 'Apple 14-core GPU',
+      operatingSystem: 'macOS Sonoma',
+      warrantyInfo: 'AppleCare+ 3 Year',
+      additionalSpecs: 'Space Black, Liquid Retina XDR display'
     });
 
     const dellxps = await HardwareConfig.create({
+      brand: 'Dell',
       modelName: 'Dell XPS 15 9530',
+      deviceType: 'Laptop',
       cpu: 'Intel Core i7-13700H',
       ram: '32GB',
-      storage: '1TB NVMe SSD'
+      storage: '1TB NVMe SSD',
+      graphicsCard: 'NVIDIA RTX 4050 6GB',
+      operatingSystem: 'Windows 11 Pro',
+      warrantyInfo: '3 Year ProSupport Plus',
+      additionalSpecs: 'OLED Touch display, Platinum Silver'
     });
 
     const thinkpad = await HardwareConfig.create({
+      brand: 'Lenovo',
       modelName: 'Lenovo ThinkPad T14 Gen 4',
+      deviceType: 'Laptop',
       cpu: 'AMD Ryzen 7 PRO 7840U',
       ram: '16GB',
-      storage: '512GB NVMe SSD'
+      storage: '512GB NVMe SSD',
+      graphicsCard: 'AMD Radeon 780M',
+      operatingSystem: 'Windows 11 Pro',
+      warrantyInfo: '3 Year Depot Warranty',
+      additionalSpecs: 'Intel AX211 Wi-Fi 6E'
     });
 
     // 5. Create Assets
@@ -127,7 +145,14 @@ export const seedDatabase = async () => {
       assetTag: 'AST-001',
       serialNumber: 'SN-M3P001',
       status: 'Deployed at Client',
-      currentUserId: staff1._id
+      currentUserId: staff1._id,
+      purchaseDate: new Date('2025-01-15'),
+      purchaseCost: 2499,
+      vendor: 'Apple Authorized Reseller',
+      warrantyExpiryDate: new Date('2028-01-15'),
+      currentLocation: 'Client Site Alpha',
+      assetCondition: 'Excellent',
+      notes: 'Issued to Charlie for client engagements'
     });
 
     const asset2 = await Asset.create({
@@ -135,7 +160,14 @@ export const seedDatabase = async () => {
       assetTag: 'AST-002',
       serialNumber: 'SN-DXP002',
       status: 'In Office',
-      currentUserId: null
+      currentUserId: null,
+      purchaseDate: new Date('2025-02-10'),
+      purchaseCost: 1999,
+      vendor: 'Dell Business Sales',
+      warrantyExpiryDate: new Date('2028-02-10'),
+      currentLocation: 'Server Room Stock',
+      assetCondition: 'New',
+      notes: 'Backup laptop in office stock'
     });
 
     const asset3 = await Asset.create({
@@ -143,7 +175,14 @@ export const seedDatabase = async () => {
       assetTag: 'AST-003',
       serialNumber: 'SN-LTP003',
       status: 'Deployed at Client',
-      currentUserId: staff2._id
+      currentUserId: staff2._id,
+      purchaseDate: new Date('2024-11-05'),
+      purchaseCost: 1250,
+      vendor: 'CDW Express',
+      warrantyExpiryDate: new Date('2027-11-05'),
+      currentLocation: 'Client Site Beta',
+      assetCondition: 'Good',
+      notes: 'Standard staff issue laptop'
     });
 
     // 6. Create Asset Movements
@@ -158,7 +197,9 @@ export const seedDatabase = async () => {
       employeeId: staff1._id,
       checkoutDate: fiveDaysAgo,
       expectedReturnDate: twoDaysAgo, // overdue since actualReturnDate is null
-      checkoutCondition: 'Brand new in shrinkwrap'
+      checkoutCondition: 'Brand new in shrinkwrap',
+      remarks: 'Charlie assigned for audit project',
+      createdBy: adminUser._id
     });
 
     // Movement 2: Checked out to Diana, Active but not overdue
@@ -172,7 +213,9 @@ export const seedDatabase = async () => {
       employeeId: staff2._id,
       checkoutDate: threeDaysAgo,
       expectedReturnDate: tenDaysFuture,
-      checkoutCondition: 'Excellent condition, minor surface scratch'
+      checkoutCondition: 'Excellent condition, minor surface scratch',
+      remarks: 'Diana assigned for engagement support',
+      createdBy: adminUser._id
     });
 
     // Movement 3: Historic completed movement
@@ -188,7 +231,10 @@ export const seedDatabase = async () => {
       expectedReturnDate: twentyFiveDaysAgo,
       actualReturnDate: twentyFiveDaysAgo,
       checkoutCondition: 'Brand new',
-      returnCondition: 'Excellent, returned in original box'
+      returnCondition: 'Excellent, returned in original box',
+      remarks: 'Temporary issue for system setup',
+      createdBy: adminUser._id,
+      updatedBy: adminUser._id
     });
 
     // 7. Create Timesheets

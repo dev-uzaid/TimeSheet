@@ -27,6 +27,14 @@ export const engagementApi = createApi({
       }),
       invalidatesTags: ['Engagement'],
     }),
+    bulkCreateEngagements: builder.mutation({
+      query: (engagementsData) => ({
+        url: '/bulk',
+        method: 'POST',
+        body: { engagements: engagementsData },
+      }),
+      invalidatesTags: ['Engagement'],
+    }),
     updateEngagement: builder.mutation({
       query: ({ id, ...updatedData }) => ({
         url: `/${id}`,
@@ -50,6 +58,7 @@ export const {
   useCreateEngagementMutation,
   useUpdateEngagementMutation,
   useMarkEngagementDoneMutation,
+  useBulkCreateEngagementsMutation,
 } = engagementApi;
 
 export default engagementApi;

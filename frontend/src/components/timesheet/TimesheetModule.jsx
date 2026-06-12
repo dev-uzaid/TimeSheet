@@ -2,8 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, Check, Plus, MessageSquare, AlertCircle, CheckCircle, XCircle, Send, LayoutGrid, List } from 'lucide-react';
 import { api } from '../../utils/api';
 
-export default function TimesheetModule({ user }) {
-  const [activeTab, setActiveTab] = useState('entries');
+export default function TimesheetModule({ user, initialTab }) {
+  const [activeTab, setActiveTab] = useState(initialTab || 'entries');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [timesheets, setTimesheets] = useState([]);
   const [engagements, setEngagements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -404,7 +410,12 @@ const fetchWorkTypes=async()=>{
         )}
         {isSupervisor && (
           <button className={`tab-btn ${activeTab === 'approvals' ? 'active' : ''}`} onClick={() => setActiveTab('approvals')}>
-            Pending Approvals ({pendingApprovals.length})
+            Pending Approvals ({pendingApprovals.filter(t => t.status === 'submitted').length})
+          </button>
+        )}
+        {isSupervisor && (
+          <button className={`tab-btn ${activeTab === 'queries' ? 'active' : ''}`} onClick={() => setActiveTab('queries')}>
+            Timesheet Queries ({pendingApprovals.filter(t => t.status === 'queried').length})
           </button>
         )}
       </div>
@@ -662,14 +673,14 @@ const fetchWorkTypes=async()=>{
                 </tr>
               </thead>
               <tbody>
-                {pendingApprovals.length === 0 ? (
+                {pendingApprovals.filter(t => t.status === 'submitted').length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
                       No timesheets currently pending your review.
                     </td>
                   </tr>
                 ) : (
-                  pendingApprovals.map((ts) => (
+                  pendingApprovals.filter(t => t.status === 'submitted').map((ts) => (
                     <tr key={ts._id}>
                       <td style={{ fontWeight: 600 }}>{ts.employeeId?.name}</td>
                       <td>{ts.date}</td>
@@ -690,17 +701,77 @@ const fetchWorkTypes=async()=>{
                             <Check size={14} />
                             Approve
                           </button>
-                          {ts.status === 'queried' ? (
-                            <button onClick={() => handleOpenQueryChat(ts)} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px', borderColor: 'var(--warning)', color: 'var(--warning)' }}>
-                              <MessageSquare size={14} />
-                              Query Chat
-                            </button>
-                          ) : (
-                            <button onClick={() => handleRaiseQueryClick(ts._id)} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px', borderColor: 'var(--warning)', color: 'var(--warning)' }}>
-                              <MessageSquare size={14} />
-                              Raise Query
-                            </button>
-                          )}
+                          <button onClick={() => handleRaiseQueryClick(ts._id)} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px', borderColor: 'var(--warning)', color: 'var(--warning)' }}>
+                            <MessageSquare size={14} />
+                            Raise Query
+                          </button>
+                          <button onClick={() => handleRejectClick(ts._id)} className="btn btn-danger btn-sm" style={{ padding: '6px 12px' }}>
+                            Reject
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 4. MANAGER TIMESHEET QUERIES */}
+      {activeTab === 'queries' && isSupervisor && (
+        <div className="glass-panel section-card">
+          <div className="section-header">
+            <h3>Active Timesheet Queries</h3>
+          </div>
+
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Date</th>
+                  <th>Engagement / Client</th>
+                  <th>Work Type</th>
+                  <th>Logged Hours</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Review Choice</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingApprovals.filter(t => t.status === 'queried').length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-secondary)' }}>
+                      No active timesheet queries.
+                    </td>
+                  </tr>
+                ) : (
+                  pendingApprovals.filter(t => t.status === 'queried').map((ts) => (
+                    <tr key={ts._id}>
+                      <td style={{ fontWeight: 600 }}>{ts.employeeId?.name}</td>
+                      <td>{ts.date}</td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{ts.engagementId?.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{ts.engagementId?.clientId?.name}</div>
+                      </td>
+                      <td>{ts.workType}</td>
+                      <td style={{ fontWeight: 600 }}>{ts.hours} hrs</td>
+                      <td>
+                        <span className={`badge badge-${ts.status}`}>
+                          {ts.status}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                          <button onClick={() => handleApprove(ts._id)} className="btn btn-primary btn-sm" style={{ padding: '6px 12px', background: 'var(--success)' }}>
+                            <Check size={14} />
+                            Approve
+                          </button>
+                          <button onClick={() => handleOpenQueryChat(ts)} className="btn btn-secondary btn-sm" style={{ padding: '6px 12px', borderColor: 'var(--warning)', color: 'var(--warning)' }}>
+                            <MessageSquare size={14} />
+                            Query Chat
+                          </button>
                           <button onClick={() => handleRejectClick(ts._id)} className="btn btn-danger btn-sm" style={{ padding: '6px 12px' }}>
                             Reject
                           </button>

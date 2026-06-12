@@ -147,4 +147,93 @@ router.put('/:id/mark-done', protect, async (req, res) => {
   }
 });
 
+// @desc    Bulk create engagements
+// @route   POST /api/engagements/bulk
+// @access  Private (Manager/Admin only)
+router.post('/bulk', protect, managerOrAdmin, async (req, res) => {
+  const { engagements } = req.body;
+  if (!engagements || !Array.isArray(engagements)) {
+    return res.status(400).json({ message: 'Invalid payload: engagements array is required' });
+  }
+
+  const results = [];
+  const errors = [];
+
+  for (let i = 0; i < engagements.length; i++) {
+    const item = engagements[i];
+    const clientName = item.clientName || item.ClientName || item.client || item.Client;
+    const name = item.name || item.Name || item.engagementName || item.EngagementName;
+    const workType = item.workType || item.WorkType || item.worktype;
+    const dueDateStr = item.dueDate || item.DueDate || item.duedate;
+    const status = item.status || item.Status || 'unassigned';
+    const billableStr = item.billable || item.Billable || 'true';
+
+    if (!clientName) {
+      errors.push(`Row ${i + 1}: Client Name is required`);
+      continue;
+    }
+    if (!name) {
+      errors.push(`Row ${i + 1}: Engagement Name is required`);
+      continue;
+    }
+    if (!workType) {
+      errors.push(`Row ${i + 1}: Work Type is required`);
+      continue;
+    }
+    if (!dueDateStr) {
+      errors.push(`Row ${i + 1}: Due Date is required`);
+      continue;
+    }
+
+    try {
+      // Find client by name (case-insensitive)
+      let client = await Client.findOne({ name: { $regex: new RegExp(`^${clientName.trim()}$`, 'i') } });
+      if (!client) {
+        // Create new client
+        client = new Client({
+          name: clientName.trim(),
+          status: 'Active',
+          email: '',
+          mobile: ''
+        });
+        await client.save();
+      }
+
+      const billable = billableStr.toString().toLowerCase() === 'false' ? false : true;
+      const dueDate = new Date(dueDateStr);
+
+      if (isNaN(dueDate.getTime())) {
+        errors.push(`Row ${i + 1}: Invalid Due Date format (expected YYYY-MM-DD)`);
+        continue;
+      }
+
+      const engagement = new Engagement({
+        clientId: client._id,
+        name: name.trim(),
+        status: status.trim().toLowerCase(),
+        workType: workType.trim(),
+        dueDate,
+        billable,
+        assignedStaff: []
+      });
+
+      await engagement.save();
+
+      // Add to client's engagements array
+      client.engagements.push(engagement._id);
+      await client.save();
+
+      results.push(engagement);
+    } catch (err) {
+      errors.push(`Row ${i + 1}: ${err.message}`);
+    }
+  }
+
+  res.status(201).json({
+    message: `Successfully processed ${results.length} engagements.`,
+    successCount: results.length,
+    errors
+  });
+});
+
 export default router;

@@ -7,3 +7,7 @@ export { default as NotificationInbox } from './notifications/NotificationInbox'
 export { default as Home } from './home/Home';
 export { default as ClientModule } from './client/ClientModule';
 export { default as WorkType } from './workType/WorkType';
+export { default as ForgotPassword } from './auth/ForgotPassword';
+export { default as ResetPassword } from './auth/ResetPassword';
+export { default as WorkInProgress } from './timesheet/WorkInProgress';
+export { default as ClientTimeSummary } from './timesheet/ClientTimeSummary';

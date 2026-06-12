@@ -1,15 +1,22 @@
 import express from 'express';
 import HardwareConfig from '../models/HardwareConfig.js';
 import Asset from '../models/Asset.js';
-import AssetMovement from '../models/AssetMovement.js';
-import Notification from '../models/Notification.js';
-import Employee from '../models/Employee.js';
-import { protect, adminOnly } from '../middleware/auth.js';
+import { protect, adminOnly, managerOrAdmin } from '../middleware/auth.js';
+import {
+  createAsset,
+  updateAsset,
+  deleteAsset,
+  assetCheckout,
+  assetCheckin,
+  getAssetHistory,
+  getOverdueAssets,
+  getDashboardStats
+} from '../services/assetService.js';
 
 const router = express.Router();
 
 // ==========================================
-// Hardware Configurations
+// Hardware Configurations (Catalog)
 // ==========================================
 
 // @desc    Get hardware configurations
@@ -17,7 +24,7 @@ const router = express.Router();
 // @access  Private
 router.get('/configs', protect, async (req, res) => {
   try {
-    const configs = await HardwareConfig.find({});
+    const configs = await HardwareConfig.find({}).sort({ brand: 1, modelName: 1 });
     res.json(configs);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -28,10 +35,21 @@ router.get('/configs', protect, async (req, res) => {
 // @route   POST /api/assets/configs
 // @access  Private (Admin only)
 router.post('/configs', protect, adminOnly, async (req, res) => {
-  const { modelName, cpu, ram, storage } = req.body;
+  const { brand, modelName, deviceType, cpu, ram, storage, graphicsCard, operatingSystem, warrantyInfo, additionalSpecs } = req.body;
 
   try {
-    const config = new HardwareConfig({ modelName, cpu, ram, storage });
+    const config = new HardwareConfig({
+      brand: brand || 'Generic',
+      modelName,
+      deviceType: deviceType || 'Laptop',
+      cpu, // processor
+      ram,
+      storage,
+      graphicsCard: graphicsCard || 'Integrated',
+      operatingSystem: operatingSystem || 'None',
+      warrantyInfo: warrantyInfo || '',
+      additionalSpecs: additionalSpecs || ''
+    });
     const created = await config.save();
     res.status(201).json(created);
   } catch (error) {
@@ -39,15 +57,68 @@ router.post('/configs', protect, adminOnly, async (req, res) => {
   }
 });
 
+// @desc    Update hardware configuration
+// @route   PUT /api/assets/configs/:id
+// @access  Private (Admin only)
+router.put('/configs/:id', protect, adminOnly, async (req, res) => {
+  const { brand, modelName, deviceType, cpu, ram, storage, graphicsCard, operatingSystem, warrantyInfo, additionalSpecs } = req.body;
+
+  try {
+    const config = await HardwareConfig.findById(req.params.id);
+    if (!config) {
+      return res.status(404).json({ message: 'Hardware Configuration not found' });
+    }
+
+    if (brand !== undefined) config.brand = brand;
+    if (modelName !== undefined) config.modelName = modelName;
+    if (deviceType !== undefined) config.deviceType = deviceType;
+    if (cpu !== undefined) config.cpu = cpu;
+    if (ram !== undefined) config.ram = ram;
+    if (storage !== undefined) config.storage = storage;
+    if (graphicsCard !== undefined) config.graphicsCard = graphicsCard;
+    if (operatingSystem !== undefined) config.operatingSystem = operatingSystem;
+    if (warrantyInfo !== undefined) config.warrantyInfo = warrantyInfo;
+    if (additionalSpecs !== undefined) config.additionalSpecs = additionalSpecs;
+
+    const updated = await config.save();
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Delete hardware configuration
+// @route   DELETE /api/assets/configs/:id
+// @access  Private (Admin only)
+router.delete('/configs/:id', protect, adminOnly, async (req, res) => {
+  try {
+    const config = await HardwareConfig.findById(req.params.id);
+    if (!config) {
+      return res.status(404).json({ message: 'Hardware Configuration not found' });
+    }
+
+    // Check if configuration is in use by any assets
+    const inUse = await Asset.countDocuments({ configId: req.params.id });
+    if (inUse > 0) {
+      return res.status(400).json({ message: 'Cannot delete configuration in use by physical assets' });
+    }
+
+    await HardwareConfig.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Configuration deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // ==========================================
-// Asset Inventory
+// Asset Inventory Stock
 // ==========================================
 
-// @desc    Get all assets (with search/filter support)
+// @desc    Get all assets (with advanced search & filters)
 // @route   GET /api/assets
 // @access  Private
 router.get('/', protect, async (req, res) => {
-  const { search, status, employeeId } = req.query;
+  const { search, status, employeeId, deviceType } = req.query;
   
   try {
     let query = {};
@@ -59,23 +130,55 @@ router.get('/', protect, async (req, res) => {
       query.currentUserId = employeeId;
     }
 
+    // Filter by Device Type if selected (requires querying configurations first)
+    if (deviceType) {
+      const typeConfigs = await HardwareConfig.find({ deviceType }).select('_id');
+      const typeConfigIds = typeConfigs.map(c => c._id);
+      query.configId = { $in: typeConfigIds };
+    }
+
+    // Search query
     if (search) {
-      // Find configs matching search name
-      const configs = await HardwareConfig.find({ modelName: { $regex: search, $options: 'i' } }).select('_id');
-      const configIds = configs.map(c => c._id);
+      // Find configs matching search name or brand
+      const searchConfigs = await HardwareConfig.find({
+        $or: [
+          { modelName: { $regex: search, $options: 'i' } },
+          { brand: { $regex: search, $options: 'i' } }
+        ]
+      }).select('_id');
+      const searchConfigIds = searchConfigs.map(c => c._id);
 
       query.$or = [
         { assetTag: { $regex: search, $options: 'i' } },
         { serialNumber: { $regex: search, $options: 'i' } },
-        { configId: { $in: configIds } }
+        { vendor: { $regex: search, $options: 'i' } },
+        { configId: { $in: searchConfigIds } }
       ];
     }
 
     const assets = await Asset.find(query)
       .populate('configId')
-      .populate('currentUserId', 'name email role');
+      .populate('currentUserId', 'name email role')
+      .sort({ createdAt: -1 });
 
     res.json(assets);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Get asset details by ID
+// @route   GET /api/assets/:id
+// @access  Private
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const asset = await Asset.findById(req.params.id)
+      .populate('configId')
+      .populate('currentUserId', 'name email role');
+    if (!asset) {
+      return res.status(404).json({ message: 'Asset not found' });
+    }
+    res.json(asset);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -85,137 +188,71 @@ router.get('/', protect, async (req, res) => {
 // @route   POST /api/assets
 // @access  Private (Admin only)
 router.post('/', protect, adminOnly, async (req, res) => {
-  const { configId, assetTag, serialNumber, status } = req.body;
-
   try {
-    const assetExists = await Asset.findOne({ $or: [{ assetTag }, { serialNumber }] });
-    if (assetExists) {
-      return res.status(400).json({ message: 'Asset Tag or Serial Number already exists' });
-    }
-
-    const asset = new Asset({
-      configId,
-      assetTag,
-      serialNumber,
-      status: status || 'In Office',
-      currentUserId: null
-    });
-
-    const created = await asset.save();
-    const populated = await Asset.findById(created._id).populate('configId');
-    res.status(201).json(populated);
+    const asset = await createAsset(req.body, req.user._id);
+    res.status(201).json(asset);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// @desc    Update asset details
+// @route   PUT /api/assets/:id
+// @access  Private (Admin only)
+router.put('/:id', protect, adminOnly, async (req, res) => {
+  try {
+    const asset = await updateAsset(req.params.id, req.body, req.user._id);
+    res.json(asset);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// @desc    Delete physical asset
+// @route   DELETE /api/assets/:id
+// @access  Private (Admin only)
+router.delete('/:id', protect, adminOnly, async (req, res) => {
+  try {
+    const result = await deleteAsset(req.params.id);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
   }
 });
 
 // ==========================================
-// Checkout / Check-in Workflow
+// Checkout / Check-in Operations
 // ==========================================
 
-// @desc    Checkout an asset to an employee
+// @desc    Checkout asset to employee
 // @route   POST /api/assets/checkout
 // @access  Private (Admin only)
 router.post('/checkout', protect, adminOnly, async (req, res) => {
-  const { assetId, employeeId, expectedReturnDate, checkoutCondition, deploymentLocation } = req.body;
-
   try {
-    const asset = await Asset.findById(assetId);
-    if (!asset) {
-      return res.status(404).json({ message: 'Asset not found' });
-    }
-
-    if (asset.currentUserId) {
-      return res.status(400).json({ message: 'Asset is already checked out' });
-    }
-
-    const employee = await Employee.findById(employeeId);
-    if (!employee) {
-      return res.status(404).json({ message: 'Employee not found' });
-    }
-
-    // Update asset details
-    asset.status = deploymentLocation || 'Deployed at Client'; // Can be 'Deployed at Client' or 'In Office' under possession
-    asset.currentUserId = employeeId;
-    await asset.save();
-
-    // Log the movement
-    const movement = new AssetMovement({
-      assetId,
-      employeeId,
-      expectedReturnDate,
-      checkoutCondition,
-      checkoutDate: new Date()
-    });
-    await movement.save();
-
-    // Create Notification for the staff member
-    await Notification.create({
-      recipientId: employeeId,
-      title: 'IT Asset Issued',
-      body: `You have been issued asset ${asset.assetTag} (S/N: ${asset.serialNumber}). Expected return date: ${new Date(expectedReturnDate).toLocaleDateString()}.`
-    });
-
+    const asset = await assetCheckout(req.body, req.user._id);
     res.json({ message: 'Asset checked out successfully', asset });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(400).json({ message: error.message });
   }
 });
 
-// @desc    Check-in (Return) an asset
+// @desc    Check-in returned asset
 // @route   POST /api/assets/checkin
 // @access  Private (Admin only)
 router.post('/checkin', protect, adminOnly, async (req, res) => {
-  const { assetId, returnCondition } = req.body;
-
   try {
-    const asset = await Asset.findById(assetId);
-    if (!asset) {
-      return res.status(404).json({ message: 'Asset not found' });
-    }
-
-    if (!asset.currentUserId) {
-      return res.status(400).json({ message: 'Asset is not checked out' });
-    }
-
-    const previousUserId = asset.currentUserId;
-
-    // Find the active movement log
-    const movement = await AssetMovement.findOne({
-      assetId,
-      employeeId: previousUserId,
-      actualReturnDate: null
-    });
-
-    if (movement) {
-      movement.actualReturnDate = new Date();
-      movement.returnCondition = returnCondition || 'Good';
-      await movement.save();
-    }
-
-    // Reset asset status
-    asset.status = 'In Office';
-    asset.currentUserId = null;
-    await asset.save();
-
-    // Create Notification for the returned staff member
-    await Notification.create({
-      recipientId: previousUserId,
-      title: 'IT Asset Returned',
-      body: `Your return for asset ${asset.assetTag} was completed. Logged condition: ${returnCondition || 'Good'}.`
-    });
-
+    const asset = await assetCheckin(req.body, req.user._id);
     res.json({ message: 'Asset checked in successfully', asset });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(400).json({ message: error.message });
   }
 });
 
 // ==========================================
-// Reports & History
+// Reports, Metrics & History
 // ==========================================
 
-// @desc    Get movement history logs
+// @desc    Get complete audit movement logs (chronological global)
 // @route   GET /api/assets/history
 // @access  Private
 router.get('/history', protect, async (req, res) => {
@@ -226,17 +263,24 @@ router.get('/history', protect, async (req, res) => {
 
     if (search) {
       // Find assets matching query tag or serial
-      const assets = await Asset.find({
+      const searchAssets = await Asset.find({
         $or: [
           { assetTag: { $regex: search, $options: 'i' } },
           { serialNumber: { $regex: search, $options: 'i' } }
         ]
       }).select('_id');
-      const assetIds = assets.map(a => a._id);
+      const assetIds = searchAssets.map(a => a._id);
 
       // Find employees matching name
-      const employees = await Employee.find({ name: { $regex: search, $options: 'i' } }).select('_id');
-      const employeeIds = employees.map(e => e._id);
+      const searchEmployees = await Asset.find({}).populate({
+        path: 'currentUserId',
+        match: { name: { $regex: search, $options: 'i' } }
+      });
+      
+      // Let's search inside employee objects
+      const employeeIds = await Asset.db.model('Employee').find({
+        name: { $regex: search, $options: 'i' }
+      }).select('_id');
 
       query.$or = [
         { assetId: { $in: assetIds } },
@@ -244,12 +288,14 @@ router.get('/history', protect, async (req, res) => {
       ];
     }
 
-    const history = await AssetMovement.find(query)
+    const history = await Asset.db.model('AssetMovement').find(query)
       .populate({
         path: 'assetId',
         populate: { path: 'configId' }
       })
       .populate('employeeId', 'name email role')
+      .populate('createdBy', 'name email role')
+      .populate('updatedBy', 'name email role')
       .sort({ checkoutDate: -1 });
 
     res.json(history);
@@ -258,36 +304,37 @@ router.get('/history', protect, async (req, res) => {
   }
 });
 
-// @desc    Get Asset dashboard counts and overdue alerts
+// @desc    Get movement timeline history of a single asset
+// @route   GET /api/assets/:id/history
+// @access  Private
+router.get('/:id/history', protect, async (req, res) => {
+  try {
+    const history = await getAssetHistory(req.params.id);
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Get active overdue return assets
+// @route   GET /api/assets/overdue
+// @access  Private
+router.get('/overdue/list', protect, async (req, res) => {
+  try {
+    const overdue = await getOverdueAssets();
+    res.json(overdue);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Get telemetry, dashboard graphs and summaries
 // @route   GET /api/assets/dashboard
 // @access  Private
 router.get('/dashboard', protect, async (req, res) => {
   try {
-    const totalCount = await Asset.countDocuments({});
-    const inOfficeCount = await Asset.countDocuments({ status: 'In Office' });
-    const deployedCount = await Asset.countDocuments({ status: 'Deployed at Client' });
-    const maintenanceCount = await Asset.countDocuments({ status: 'Maintenance' });
-
-    // Identify overdue assets
-    const activeMovements = await AssetMovement.find({ actualReturnDate: null })
-      .populate({
-        path: 'assetId',
-        populate: { path: 'configId' }
-      })
-      .populate('employeeId', 'name email role');
-
-    const now = new Date();
-    const overdue = activeMovements.filter(m => new Date(m.expectedReturnDate) < now);
-
-    res.json({
-      summary: {
-        total: totalCount,
-        inOffice: inOfficeCount,
-        deployed: deployedCount,
-        maintenance: maintenanceCount
-      },
-      overdue
-    });
+    const stats = await getDashboardStats();
+    res.json(stats);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

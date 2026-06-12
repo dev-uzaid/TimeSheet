@@ -96,4 +96,73 @@ router.put('/:id', protect, managerOrAdmin, async (req, res) => {
   }
 });
 
+// @desc    Bulk create clients
+// @route   POST /api/clients/bulk
+// @access  Private (Manager/Admin only)
+router.post('/bulk', protect, managerOrAdmin, async (req, res) => {
+  const { clients } = req.body;
+  if (!clients || !Array.isArray(clients)) {
+    return res.status(400).json({ message: 'Invalid payload: clients array is required' });
+  }
+
+  const results = [];
+  const errors = [];
+
+  for (let i = 0; i < clients.length; i++) {
+    const item = clients[i];
+    const Name = item.Name || item.name;
+    const Email = item.Email || item.email;
+    const Mobile = item.Mobile || item.mobile;
+    const Status = item.Status || item.status;
+    const EngagementName = item.EngagementName || item.engagementName;
+    const EngagementWorkType = item.EngagementWorkType || item.engagementWorkType;
+
+    if (!Name) {
+      errors.push(`Row ${i + 1}: Client Name is required`);
+      continue;
+    }
+
+    try {
+      const client = new Client({
+        name: Name,
+        email: Email || '',
+        mobile: Mobile || '',
+        status: Status || 'Active'
+      });
+
+      let engagement;
+      if (EngagementName && EngagementWorkType) {
+        engagement = await Engagement.create({
+          clientId: client._id,
+          name: EngagementName,
+          workType: EngagementWorkType,
+          status: 'unassigned',
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          billable: true,
+          assignedStaff: []
+        });
+      } else {
+        engagement = await Engagement.create({
+          name: `${Name} - General`,
+          clientId: client._id,
+          workType: 'Consultation',
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        });
+      }
+      client.engagements.push(engagement._id);
+      await client.save();
+
+      results.push(client);
+    } catch (err) {
+      errors.push(`Row ${i + 1}: ${err.message}`);
+    }
+  }
+
+  res.status(201).json({
+    message: `Successfully processed ${results.length} clients.`,
+    successCount: results.length,
+    errors
+  });
+});
+
 export default router;

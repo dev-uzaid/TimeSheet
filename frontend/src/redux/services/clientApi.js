@@ -42,6 +42,16 @@ export const clientApi = createApi({
       invalidatesTags: ["Clients"],
     }),
 
+    // BULK ADD CLIENTS
+    bulkAddClients: builder.mutation({
+      query: (clientsData) => ({
+        url: "/bulk",
+        method: "POST",
+        body: { clients: clientsData },
+      }),
+      invalidatesTags: ["Clients"],
+    }),
+
     // UPDATE CLIENT
     updateClient: builder.mutation({
       query: ({ id, ...clientData }) => ({
@@ -69,4 +79,5 @@ export const {
   useAddClientMutation,
   useUpdateClientMutation,
   useDeleteClientMutation,
+  useBulkAddClientsMutation,
 } = clientApi;
