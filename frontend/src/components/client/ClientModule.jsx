@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useGetClientsQuery, useAddClientMutation, useUpdateClientMutation, useBulkAddClientsMutation } from '../../redux/services/clientApi';
 import { useGetEmployeesQuery } from '../../redux/services/employeeApi';
 import { Building, Plus, Upload, AlertCircle, CheckCircle, Download } from 'lucide-react';
-import { getStoredUser } from '../../utils/api';
+import { getStoredUser, BASE_URL } from '../../utils/api';
 import axios from 'axios';
 
 export default function ClientModule() {
@@ -55,7 +55,7 @@ export default function ClientModule() {
 
   const fetchWorkTypes = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/workType');
+      const res = await axios.get(`${BASE_URL}/workType`);
       if (res.data) {
         setWorkTypes(res.data);
       }

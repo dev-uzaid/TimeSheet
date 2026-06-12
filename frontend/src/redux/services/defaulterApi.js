@@ -1,10 +1,10 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { getStoredToken } from '../../utils/api';
+import { getStoredToken, BASE_URL } from '../../utils/api';
 
 export const defaulterApi = createApi({
   reducerPath: 'defaulterApi',
   baseQuery: fetchBaseQuery({
-    baseUrl: 'http://localhost:5000/api/defaulters',
+    baseUrl: `${BASE_URL}/defaulters`,
     prepareHeaders: (headers) => {
       const token = getStoredToken();
       if (token) {

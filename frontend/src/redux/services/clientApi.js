@@ -1,4 +1,5 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { BASE_URL } from "../../utils/api";
 
 export const clientApi = createApi({
   reducerPath: "clientApi",
@@ -6,7 +7,7 @@ export const clientApi = createApi({
   tagTypes: ["Clients"],
 
   baseQuery: fetchBaseQuery({
-    baseUrl: "http://localhost:5000/api/clients",
+    baseUrl: `${BASE_URL}/clients`,
 
     prepareHeaders: (headers) => {
       const token = localStorage.getItem("token");

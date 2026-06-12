@@ -1,4 +1,6 @@
-const BASE_URL = 'http://localhost:5000/api';
+export const BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:5000/api'
+  : 'https://timesheet-backend-764v.onrender.com/api';
 
 export const getStoredToken = () => localStorage.getItem('token');
 export const setStoredToken = (token) => localStorage.setItem('token', token);

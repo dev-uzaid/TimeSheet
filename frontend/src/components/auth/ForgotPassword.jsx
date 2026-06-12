@@ -3,6 +3,7 @@ import { Briefcase, Mail, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-rea
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import logoImg from '../../assets/bhargava_logo.jpg';
+import { BASE_URL } from '../../utils/api';
 
 
 export default function ForgotPassword() {
@@ -20,7 +21,7 @@ export default function ForgotPassword() {
     setErrorMsg('');
 
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/forgot-password', { email });
+      const res = await axios.post(`${BASE_URL}/auth/forgot-password`, { email });
       setSuccessMsg(res.data?.message || 'Password reset link sent successfully. Please check your inbox.');
       setEmail('');
     } catch (err) {

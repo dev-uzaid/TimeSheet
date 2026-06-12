@@ -1,10 +1,11 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { BASE_URL } from "../../utils/api";
 
 export const companyApi = createApi({
   reducerPath: "companyApi",
 
   baseQuery: fetchBaseQuery({
-    baseUrl: "http://localhost:5000/api/companies",
+    baseUrl: `${BASE_URL}/companies`,
   }),
 
   tagTypes: ["Company"],

@@ -1,10 +1,10 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { getStoredToken } from '../../utils/api';
+import { getStoredToken, BASE_URL } from '../../utils/api';
 
 export const employeeApi = createApi({
   reducerPath: 'employeeApi',
   baseQuery: fetchBaseQuery({
-    baseUrl: 'http://localhost:5000/api/employees',
+    baseUrl: `${BASE_URL}/employees`,
     prepareHeaders: (headers) => {
       const token = getStoredToken();
       if (token) {

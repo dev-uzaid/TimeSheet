@@ -70,7 +70,8 @@ router.post('/forgot-password', async (req, res) => {
     await employee.save();
 
     // Create reset URL
-    const resetUrl = `${req.headers.origin || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://timesheet-n50m.onrender.com';
+    const resetUrl = `${req.headers.origin || frontendUrl}/reset-password?token=${resetToken}`;
 
     // Send email using Brevo Transactional API
     const apiKey = process.env.BREVO_API_KEY;

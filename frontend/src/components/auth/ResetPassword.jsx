@@ -3,6 +3,7 @@ import { Briefcase, Lock, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-rea
 import { Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import logoImg from '../../assets/bhargava_logo.jpg';
+import { BASE_URL } from '../../utils/api';
 
 
 export default function ResetPassword() {
@@ -40,7 +41,7 @@ export default function ResetPassword() {
     setErrorMsg('');
 
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/reset-password', {
+      const res = await axios.post(`${BASE_URL}/auth/reset-password`, {
         token,
         password
       });

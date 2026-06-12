@@ -4,6 +4,7 @@ import { useGetEngagementsQuery, useCreateEngagementMutation, useUpdateEngagemen
 import { useGetClientsQuery } from '../../redux/services/clientApi';
 import { useGetEmployeesQuery } from '../../redux/services/employeeApi';
 import axios from 'axios';
+import { BASE_URL } from '../../utils/api';
 
 export default function EngagementModule({ user }) {
   // RTK Query hooks
@@ -125,7 +126,7 @@ export default function EngagementModule({ user }) {
 
   const fetchWorkTypes = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/workType');
+      const res = await axios.get(`${BASE_URL}/workType`);
       if (res.data) {
         console.log(res.data);
         setWorkTypes(res.data);
