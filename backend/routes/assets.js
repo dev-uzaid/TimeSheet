@@ -167,6 +167,86 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
+// ==========================================
+// Reports, Metrics & History
+// ==========================================
+
+// @desc    Get complete audit movement logs (chronological global)
+// @route   GET /api/assets/history
+// @access  Private
+router.get('/history', protect, async (req, res) => {
+  const { search } = req.query;
+
+  try {
+    let query = {};
+
+    if (search) {
+      // Find assets matching query tag or serial
+      const searchAssets = await Asset.find({
+        $or: [
+          { assetTag: { $regex: search, $options: 'i' } },
+          { serialNumber: { $regex: search, $options: 'i' } }
+        ]
+      }).select('_id');
+      const assetIds = searchAssets.map(a => a._id);
+
+      // Find employees matching name
+      const searchEmployees = await Asset.find({}).populate({
+        path: 'currentUserId',
+        match: { name: { $regex: search, $options: 'i' } }
+      });
+      
+      // Let's search inside employee objects
+      const employeeIds = await Asset.db.model('Employee').find({
+        name: { $regex: search, $options: 'i' }
+      }).select('_id');
+
+      query.$or = [
+        { assetId: { $in: assetIds } },
+        { employeeId: { $in: employeeIds } }
+      ];
+    }
+
+    const history = await Asset.db.model('AssetMovement').find(query)
+      .populate({
+        path: 'assetId',
+        populate: { path: 'configId' }
+      })
+      .populate('employeeId', 'name email role')
+      .populate('createdBy', 'name email role')
+      .populate('updatedBy', 'name email role')
+      .sort({ checkoutDate: -1 });
+
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Get active overdue return assets
+// @route   GET /api/assets/overdue
+// @access  Private
+router.get('/overdue/list', protect, async (req, res) => {
+  try {
+    const overdue = await getOverdueAssets();
+    res.json(overdue);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// @desc    Get telemetry, dashboard graphs and summaries
+// @route   GET /api/assets/dashboard
+// @access  Private
+router.get('/dashboard', protect, async (req, res) => {
+  try {
+    const stats = await getDashboardStats();
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // @desc    Get asset details by ID
 // @route   GET /api/assets/:id
 // @access  Private
@@ -248,61 +328,7 @@ router.post('/checkin', protect, adminOnly, async (req, res) => {
   }
 });
 
-// ==========================================
-// Reports, Metrics & History
-// ==========================================
 
-// @desc    Get complete audit movement logs (chronological global)
-// @route   GET /api/assets/history
-// @access  Private
-router.get('/history', protect, async (req, res) => {
-  const { search } = req.query;
-
-  try {
-    let query = {};
-
-    if (search) {
-      // Find assets matching query tag or serial
-      const searchAssets = await Asset.find({
-        $or: [
-          { assetTag: { $regex: search, $options: 'i' } },
-          { serialNumber: { $regex: search, $options: 'i' } }
-        ]
-      }).select('_id');
-      const assetIds = searchAssets.map(a => a._id);
-
-      // Find employees matching name
-      const searchEmployees = await Asset.find({}).populate({
-        path: 'currentUserId',
-        match: { name: { $regex: search, $options: 'i' } }
-      });
-      
-      // Let's search inside employee objects
-      const employeeIds = await Asset.db.model('Employee').find({
-        name: { $regex: search, $options: 'i' }
-      }).select('_id');
-
-      query.$or = [
-        { assetId: { $in: assetIds } },
-        { employeeId: { $in: employeeIds } }
-      ];
-    }
-
-    const history = await Asset.db.model('AssetMovement').find(query)
-      .populate({
-        path: 'assetId',
-        populate: { path: 'configId' }
-      })
-      .populate('employeeId', 'name email role')
-      .populate('createdBy', 'name email role')
-      .populate('updatedBy', 'name email role')
-      .sort({ checkoutDate: -1 });
-
-    res.json(history);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
 
 // @desc    Get movement timeline history of a single asset
 // @route   GET /api/assets/:id/history
@@ -316,28 +342,8 @@ router.get('/:id/history', protect, async (req, res) => {
   }
 });
 
-// @desc    Get active overdue return assets
-// @route   GET /api/assets/overdue
-// @access  Private
-router.get('/overdue/list', protect, async (req, res) => {
-  try {
-    const overdue = await getOverdueAssets();
-    res.json(overdue);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
 
-// @desc    Get telemetry, dashboard graphs and summaries
-// @route   GET /api/assets/dashboard
-// @access  Private
-router.get('/dashboard', protect, async (req, res) => {
-  try {
-    const stats = await getDashboardStats();
-    res.json(stats);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
+
+
 
 export default router;
