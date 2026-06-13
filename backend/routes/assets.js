@@ -22,7 +22,7 @@ const router = express.Router();
 // @desc    Get hardware configurations
 // @route   GET /api/assets/configs
 // @access  Private
-router.get('/configs', protect, async (req, res) => {
+router.get('/configs', protect, adminOnly, async (req, res) => {
   try {
     const configs = await HardwareConfig.find({}).sort({ brand: 1, modelName: 1 });
     res.json(configs);
@@ -117,7 +117,7 @@ router.delete('/configs/:id', protect, adminOnly, async (req, res) => {
 // @desc    Get all assets (with advanced search & filters)
 // @route   GET /api/assets
 // @access  Private
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, adminOnly, async (req, res) => {
   const { search, status, employeeId, deviceType } = req.query;
   
   try {
@@ -174,7 +174,7 @@ router.get('/', protect, async (req, res) => {
 // @desc    Get complete audit movement logs (chronological global)
 // @route   GET /api/assets/history
 // @access  Private
-router.get('/history', protect, async (req, res) => {
+router.get('/history', protect, adminOnly, async (req, res) => {
   const { search } = req.query;
 
   try {
@@ -226,7 +226,7 @@ router.get('/history', protect, async (req, res) => {
 // @desc    Get active overdue return assets
 // @route   GET /api/assets/overdue
 // @access  Private
-router.get('/overdue/list', protect, async (req, res) => {
+router.get('/overdue/list', protect, adminOnly, async (req, res) => {
   try {
     const overdue = await getOverdueAssets();
     res.json(overdue);
@@ -238,7 +238,7 @@ router.get('/overdue/list', protect, async (req, res) => {
 // @desc    Get telemetry, dashboard graphs and summaries
 // @route   GET /api/assets/dashboard
 // @access  Private
-router.get('/dashboard', protect, async (req, res) => {
+router.get('/dashboard', protect, adminOnly, async (req, res) => {
   try {
     const stats = await getDashboardStats();
     res.json(stats);
@@ -250,7 +250,7 @@ router.get('/dashboard', protect, async (req, res) => {
 // @desc    Get asset details by ID
 // @route   GET /api/assets/:id
 // @access  Private
-router.get('/:id', protect, async (req, res) => {
+router.get('/:id', protect, adminOnly, async (req, res) => {
   try {
     const asset = await Asset.findById(req.params.id)
       .populate('configId')
@@ -333,7 +333,7 @@ router.post('/checkin', protect, adminOnly, async (req, res) => {
 // @desc    Get movement timeline history of a single asset
 // @route   GET /api/assets/:id/history
 // @access  Private
-router.get('/:id/history', protect, async (req, res) => {
+router.get('/:id/history', protect, adminOnly, async (req, res) => {
   try {
     const history = await getAssetHistory(req.params.id);
     res.json(history);

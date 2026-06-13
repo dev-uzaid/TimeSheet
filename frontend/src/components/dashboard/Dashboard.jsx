@@ -9,13 +9,14 @@ export default function Dashboard({ user, setActiveScreen }) {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
+      const isAdmin = user.role === 'admin';
       const [timesheets, engagements, assets, employees, clients, assetDashboard, companiesData] = await Promise.all([
         api.get('/timesheets'),
         api.get('/engagements'),
-        api.get('/assets'),
+        isAdmin ? api.get('/assets') : Promise.resolve([]),
         api.get('/employees').catch(() => []),
         api.get('/clients'),
-        api.get('/assets/dashboard'),
+        isAdmin ? api.get('/assets/dashboard') : Promise.resolve(null),
         api.get('/companies').catch(() => ({ companies: [] }))
       ]);
 
@@ -165,14 +166,7 @@ export default function Dashboard({ user, setActiveScreen }) {
       screen: "employees",
       roles: ["admin", "manager"]
     },
-    {
-      title: "Issued Assets",
-      desc: "View and manage company devices",
-      icon: <Monitor size={20} style={{ color: "#f59e0b" }} />,
-      bg: "rgba(245, 158, 11, 0.15)",
-      screen: "assets",
-      roles: ["staff"]
-    },
+
     {
       title: "System Alerts",
       desc: "Check recent system notifications",
@@ -293,30 +287,7 @@ export default function Dashboard({ user, setActiveScreen }) {
             </div>
           </div>
 
-          {/* Issued Assets Card */}
-          <div className="glass-panel" style={{
-            padding: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '20px'
-          }}>
-            <div style={{
-              background: 'rgba(245, 158, 11, 0.15)',
-              borderRadius: '12px',
-              width: '52px',
-              height: '52px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              <Monitor size={24} style={{ color: '#f59e0b' }} />
-            </div>
-            <div>
-              <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{myAssets.length}</div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '4px' }}>Issued IT Devices</div>
-            </div>
-          </div>
+
         </div>
 
         {/* Quick Actions Title */}

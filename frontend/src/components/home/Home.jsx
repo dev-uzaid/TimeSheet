@@ -59,6 +59,12 @@ export default function Home() {
     }
   }, [token]);
 
+  useEffect(() => {
+    if (user && user.role !== 'admin' && (activeScreen === 'assets' || activeScreen.startsWith('asset-') || activeScreen === 'hardware-configs')) {
+      setActiveScreen('dashboard');
+    }
+  }, [activeScreen, user]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -437,7 +443,7 @@ export default function Home() {
           )}
 
           {/* ASSET MANAGEMENT SECTION */}
-          {user.role !== 'manager' && (
+          {user.role === 'admin' && (
             <>
               <li 
                 className="nav-item-header" 
@@ -569,7 +575,7 @@ export default function Home() {
           {activeScreen === 'worktypes' && (user.role === 'manager' || user.role === 'admin') && <WorkType />}
           {activeScreen === 'engagements' && (user.role === 'manager' || user.role === 'admin') && <EngagementModule user={user} />}
           {activeScreen ==='company'&&(user.role==='manager'||user.role==='admin')&&<Company/>}
-          {(activeScreen === 'assets' || activeScreen.startsWith('asset-') || activeScreen === 'hardware-configs') && (
+          {(activeScreen === 'assets' || activeScreen.startsWith('asset-') || activeScreen === 'hardware-configs') && user.role === 'admin' && (
             <ITAssetModule user={user} subScreen={activeScreen} />
           )}
           {activeScreen === 'defaulters' && user.role === 'admin' && <DefaulterModule />}

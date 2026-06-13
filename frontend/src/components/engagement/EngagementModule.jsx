@@ -466,7 +466,7 @@ export default function EngagementModule({ user }) {
       {/* Create Engagement Modal */}
       {showEngageModal && (
         <div className="modal-overlay">
-          <div className="glass-panel modal-content" style={{ maxWidth: '620px' }}>
+          <div className="glass-panel modal-content" style={{ maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header">
               <h3>Define Scope of Engagement</h3>
               <button className="modal-close" onClick={() => setShowEngageModal(false)}>Close</button>
